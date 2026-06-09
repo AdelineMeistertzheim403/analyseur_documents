@@ -7,6 +7,15 @@ import customtkinter as ctk
 from analyseur import analyser_texte
 from lecteur_pdf import lire_pdf
 from export_pdf import exporter_resultat
+from interface_helpers import (
+    TERMES_TECHNIQUES_PAR_DEFAUT,
+    creer_figure_analyse,
+    extraire_termes_depuis_texte,
+    formater_mots_frequents,
+    formater_phrases_longues,
+    formater_statistiques,
+    formater_termes_techniques,
+)
 
 
 class AnalyseurApp:
@@ -21,6 +30,7 @@ class AnalyseurApp:
 
         self.chemin_fichier = None
         self.resultat = None
+        self.canvas_graphes = None
 
         self.creer_interface()
 
@@ -86,7 +96,7 @@ class AnalyseurApp:
         self.frame_options = ctk.CTkFrame(self.root, corner_radius=15)
         self.frame_options.grid(row=2, column=0, padx=20, pady=10, sticky="nsew")
         self.frame_options.grid_columnconfigure(0, weight=1)
-        self.frame_options.grid_rowconfigure(1, weight=1)
+        self.frame_options.grid_rowconfigure(2, weight=1)
 
         self.creer_options()
         self.creer_onglets()
@@ -94,12 +104,13 @@ class AnalyseurApp:
     def creer_options(self):
         frame_ligne_options = ctk.CTkFrame(self.frame_options, fg_color="transparent")
         frame_ligne_options.grid(row=0, column=0, padx=15, pady=(15, 5), sticky="ew")
+        frame_ligne_options.grid_columnconfigure(4, weight=1)
 
         label_limite = ctk.CTkLabel(
             frame_ligne_options,
             text="Phrase trop longue à partir de :"
         )
-        label_limite.pack(side="left", padx=(0, 8))
+        label_limite.grid(row=0, column=0, padx=(0, 8), pady=5, sticky="w")
 
         self.input_limite_phrase = ctk.CTkEntry(
             frame_ligne_options,
@@ -107,13 +118,13 @@ class AnalyseurApp:
             justify="center"
         )
         self.input_limite_phrase.insert(0, "35")
-        self.input_limite_phrase.pack(side="left")
+        self.input_limite_phrase.grid(row=0, column=1, pady=5, sticky="w")
 
         label_mots = ctk.CTkLabel(
             frame_ligne_options,
             text="mots"
         )
-        label_mots.pack(side="left", padx=8)
+        label_mots.grid(row=0, column=2, padx=8, pady=5, sticky="w")
 
         bouton_mode = ctk.CTkButton(
             frame_ligne_options,
@@ -121,24 +132,53 @@ class AnalyseurApp:
             command=self.changer_theme,
             width=130
         )
-        bouton_mode.pack(side="right", padx=5)
+        bouton_mode.grid(row=0, column=5, padx=5, pady=5, sticky="e")
+
+        frame_termes = ctk.CTkFrame(self.frame_options, corner_radius=12)
+        frame_termes.grid(row=1, column=0, padx=15, pady=(10, 5), sticky="ew")
+        frame_termes.grid_columnconfigure(0, weight=1)
+
+        label_termes = ctk.CTkLabel(
+            frame_termes,
+            text="Termes techniques à rechercher",
+            font=ctk.CTkFont(size=14, weight="bold")
+        )
+        label_termes.grid(row=0, column=0, padx=15, pady=(10, 0), sticky="w")
+
+        aide_termes = ctk.CTkLabel(
+            frame_termes,
+            text="Saisis un terme par ligne. Exemple : API, Docker, base de données, React Native...",
+            text_color="gray"
+        )
+        aide_termes.grid(row=1, column=0, padx=15, pady=(0, 8), sticky="w")
+
+        self.zone_saisie_termes = ctk.CTkTextbox(
+            frame_termes,
+            height=100,
+            font=ctk.CTkFont(size=13)
+        )
+        self.zone_saisie_termes.grid(row=2, column=0, padx=15, pady=(0, 15), sticky="ew")
+
+        self.zone_saisie_termes.insert("1.0", "\n".join(TERMES_TECHNIQUES_PAR_DEFAUT))
 
     def creer_onglets(self):
         self.tabview = ctk.CTkTabview(
             self.frame_options,
             corner_radius=15
         )
-        self.tabview.grid(row=1, column=0, padx=15, pady=15, sticky="nsew")
+        self.tabview.grid(row=2, column=0, padx=15, pady=15, sticky="nsew")
 
         self.tabview.add("Statistiques")
         self.tabview.add("Mots fréquents")
         self.tabview.add("Phrases longues")
         self.tabview.add("Termes techniques")
+        self.tabview.add("Graphiques")
 
         self.zone_stats = self.creer_zone_texte(self.tabview.tab("Statistiques"))
         self.zone_mots = self.creer_zone_texte(self.tabview.tab("Mots fréquents"))
         self.zone_phrases = self.creer_zone_texte(self.tabview.tab("Phrases longues"))
         self.zone_termes = self.creer_zone_texte(self.tabview.tab("Termes techniques"))
+        self.frame_graphes = self.creer_zone_graphiques(self.tabview.tab("Graphiques"))
 
     def creer_zone_texte(self, parent):
         zone_texte = ctk.CTkTextbox(
@@ -148,6 +188,11 @@ class AnalyseurApp:
         )
         zone_texte.pack(expand=True, fill="both", padx=10, pady=10)
         return zone_texte
+
+    def creer_zone_graphiques(self, parent):
+        frame = ctk.CTkFrame(parent)
+        frame.pack(expand=True, fill="both", padx=10, pady=10)
+        return frame
 
     def changer_theme(self):
         mode_actuel = ctk.get_appearance_mode()
@@ -221,9 +266,12 @@ class AnalyseurApp:
             )
             return
 
+        termes_techniques = self.recuperer_termes_techniques()
+
         self.resultat = analyser_texte(
             texte,
-            limite_phrase_longue=limite_phrase_longue
+            limite_phrase_longue=limite_phrase_longue,
+            termes_techniques=termes_techniques
         )
 
         self.afficher_resultat()
@@ -240,102 +288,46 @@ class AnalyseurApp:
         self.afficher_mots_frequents()
         self.afficher_phrases_longues()
         self.afficher_termes_techniques()
+        self.afficher_graphiques()
 
     def afficher_statistiques(self):
-        self.zone_stats.insert("end", "STATISTIQUES GÉNÉRALES\n\n")
-
-        self.zone_stats.insert(
-            "end",
-            f"Nombre de caractères : {self.resultat['nombre_caracteres']}\n"
+        termes_recherches = self.recuperer_termes_techniques()
+        contenu = formater_statistiques(
+            self.resultat,
+            nombre_termes_recherches=len(termes_recherches)
         )
+        self.zone_stats.insert("end", contenu)
 
-        self.zone_stats.insert(
-            "end",
-            f"Nombre de mots : {self.resultat['nombre_mots']}\n"
-        )
-
-        self.zone_stats.insert(
-            "end",
-            f"Nombre de phrases : {self.resultat['nombre_phrases']}\n"
-        )
-
-        if self.resultat["nombre_phrases"] > 0:
-            moyenne = self.resultat["nombre_mots"] / self.resultat["nombre_phrases"]
-            self.zone_stats.insert(
-                "end",
-                f"Nombre moyen de mots par phrase : {moyenne:.2f}\n"
-            )
-
-        if "phrases_longues" in self.resultat:
-            self.zone_stats.insert(
-                "end",
-                f"Nombre de phrases longues : {len(self.resultat['phrases_longues'])}\n"
-            )
+    def recuperer_termes_techniques(self):
+        contenu = self.zone_saisie_termes.get("1.0", "end")
+        return extraire_termes_depuis_texte(contenu)
 
     def afficher_mots_frequents(self):
-        self.zone_mots.insert("end", "MOTS LES PLUS FRÉQUENTS\n\n")
-
-        if len(self.resultat["mots_frequents"]) == 0:
-            self.zone_mots.insert("end", "Aucun mot fréquent détecté.\n")
-            return
-
-        for index, (mot, frequence) in enumerate(self.resultat["mots_frequents"], start=1):
-            self.zone_mots.insert(
-                "end",
-                f"{index}. {mot} : {frequence}\n"
-            )
+        self.zone_mots.insert("end", formater_mots_frequents(self.resultat))
 
     def afficher_phrases_longues(self):
         limite = self.input_limite_phrase.get()
-
-        self.zone_phrases.insert(
-            "end",
-            f"PHRASES DE PLUS DE {limite} MOTS\n\n"
-        )
-
-        if "phrases_longues" not in self.resultat:
-            self.zone_phrases.insert(
-                "end",
-                "La détection des phrases longues n'est pas encore disponible.\n"
-            )
-            return
-
-        if len(self.resultat["phrases_longues"]) == 0:
-            self.zone_phrases.insert(
-                "end",
-                "Aucune phrase trop longue détectée.\n"
-            )
-            return
-
-        for index, item in enumerate(self.resultat["phrases_longues"], start=1):
-            self.zone_phrases.insert(
-                "end",
-                f"{index}. {item['nombre_mots']} mots\n"
-            )
-            self.zone_phrases.insert(
-                "end",
-                f"{item['phrase']}\n\n"
-            )
+        self.zone_phrases.insert("end", formater_phrases_longues(self.resultat, limite))
 
     def afficher_termes_techniques(self):
-        self.zone_termes.insert("end", "TERMES TECHNIQUES DÉTECTÉS\n\n")
+        self.zone_termes.insert("end", formater_termes_techniques(self.resultat))
 
-        if "termes_techniques" not in self.resultat:
-            self.zone_termes.insert(
-                "end",
-                "La détection des termes techniques n'est pas encore disponible.\n"
-            )
+    def afficher_graphiques(self):
+        for widget in self.frame_graphes.winfo_children():
+            widget.destroy()
+
+        figure, message = creer_figure_analyse(self.resultat)
+
+        if message:
+            label = ctk.CTkLabel(self.frame_graphes, text=message)
+            label.pack(expand=True)
             return
 
-        if len(self.resultat["termes_techniques"]) == 0:
-            self.zone_termes.insert(
-                "end",
-                "Aucun terme technique détecté.\n"
-            )
-            return
+        from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 
-        for terme in self.resultat["termes_techniques"]:
-            self.zone_termes.insert("end", f"- {terme}\n")
+        self.canvas_graphes = FigureCanvasTkAgg(figure, master=self.frame_graphes)
+        self.canvas_graphes.draw()
+        self.canvas_graphes.get_tk_widget().pack(expand=True, fill="both")
 
     def vider_resultats(self):
         zones = [
@@ -347,6 +339,9 @@ class AnalyseurApp:
 
         for zone in zones:
             zone.delete("1.0", "end")
+
+        for widget in self.frame_graphes.winfo_children():
+            widget.destroy()
 
     def exporter_rapport(self):
         if not self.resultat:
