@@ -35,10 +35,54 @@ def formater_statistiques(resultat, nombre_termes_recherches):
     if "phrases_longues" in resultat:
         lignes.append(f"Nombre de phrases longues : {len(resultat['phrases_longues'])}")
 
+    lisibilite = resultat.get("lisibilite")
+    if lisibilite:
+        lignes.extend([
+            "",
+            "LISIBILITÉ",
+            f"Niveau : {lisibilite['niveau']}",
+            f"Score : {lisibilite['score']} / 100",
+            f"Moyenne analysée : {lisibilite['moyenne_mots_phrase']:.2f} mots par phrase",
+            f"Phrases longues : {lisibilite['pourcentage_phrases_longues']:.1f} %"
+        ])
+
+    lignes.append("")
     lignes.append(f"Nombre de termes techniques recherchés : {nombre_termes_recherches}")
 
     if "termes_techniques" in resultat:
         lignes.append(f"Nombre de termes techniques trouvés : {len(resultat['termes_techniques'])}")
+
+    absents = resultat.get("termes_techniques_absents", [])
+    lignes.append(f"Nombre de termes techniques non trouvés : {len(absents)}")
+
+    return "\n".join(lignes) + "\n"
+
+
+def formater_resume_qualite(resultat):
+    resume = resultat.get("resume_qualite")
+
+    if not resume:
+        return "RÉSUMÉ QUALITÉ\n\nAucun résumé disponible.\n"
+
+    lignes = [
+        "RÉSUMÉ QUALITÉ",
+        "",
+        f"Niveau global : {resume['niveau']}",
+        f"Score : {resume['score']} / 100",
+        "",
+        "POINTS FORTS"
+    ]
+
+    for point in resume["points_forts"]:
+        lignes.append(f"- {point}")
+
+    lignes.extend(["", "POINTS À AMÉLIORER"])
+    for point in resume["points_a_ameliorer"]:
+        lignes.append(f"- {point}")
+
+    lignes.extend(["", "RECOMMANDATIONS"])
+    for recommandation in resume["recommandations"]:
+        lignes.append(f"- {recommandation}")
 
     return "\n".join(lignes) + "\n"
 
@@ -70,7 +114,21 @@ def formater_phrases_longues(resultat, limite):
         return "\n".join(lignes) + "\n"
 
     for index, item in enumerate(phrases_longues, start=1):
-        lignes.append(f"{index}. {item['nombre_mots']} mots")
+        page = f"Page {item['page']} - " if item.get("page") else ""
+        lignes.append(f"{index}. {page}{item['nombre_mots']} mots")
+
+        alertes = item.get("alertes", [])
+        if alertes:
+            lignes.append(f"Alertes : {', '.join(alertes)}")
+
+        connecteurs = item.get("connecteurs", [])
+        if connecteurs:
+            lignes.append(f"Connecteurs repérés : {', '.join(connecteurs)}")
+
+        suggestion = item.get("suggestion")
+        if suggestion:
+            lignes.append(f"Suggestion : {suggestion}")
+
         lignes.append(item["phrase"])
         lignes.append("")
 
@@ -87,10 +145,18 @@ def formater_termes_techniques(resultat):
     termes = resultat["termes_techniques"]
     if len(termes) == 0:
         lignes.append("Aucun terme technique détecté.")
-        return "\n".join(lignes) + "\n"
+    else:
+        for item in termes:
+            lignes.append(f"- {item['terme']} : {item['occurrences']} occurrence(s)")
 
-    for terme in termes:
-        lignes.append(f"- {terme}")
+    absents = resultat.get("termes_techniques_absents", [])
+    lignes.extend(["", "TERMES NON TROUVÉS", ""])
+
+    if not absents:
+        lignes.append("Tous les termes recherchés ont été trouvés.")
+    else:
+        for terme in absents:
+            lignes.append(f"- {terme}")
 
     return "\n".join(lignes) + "\n"
 

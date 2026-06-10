@@ -6,13 +6,14 @@ import customtkinter as ctk
 
 from analyseur import analyser_texte
 from lecteur_pdf import lire_pdf
-from export_pdf import exporter_resultat
+from export_pdf import exporter_graphiques, exporter_resultat
 from interface_helpers import (
     TERMES_TECHNIQUES_PAR_DEFAUT,
     creer_figure_analyse,
     extraire_termes_depuis_texte,
     formater_mots_frequents,
     formater_phrases_longues,
+    formater_resume_qualite,
     formater_statistiques,
     formater_termes_techniques,
 )
@@ -22,8 +23,8 @@ class AnalyseurApp:
     def __init__(self, root):
         self.root = root
         self.root.title("Analyseur de documents")
-        self.root.geometry("1000x700")
-        self.root.minsize(900, 600)
+        self.root.geometry("1080x720")
+        self.root.minsize(980, 640)
 
         ctk.set_appearance_mode("dark")
         ctk.set_default_color_theme("dark-blue")
@@ -31,6 +32,11 @@ class AnalyseurApp:
         self.chemin_fichier = None
         self.resultat = None
         self.canvas_graphes = None
+        self.figure_graphes = None
+
+        self.var_ignorer_titres = tk.BooleanVar(value=True)
+        self.var_filtrer_blocs = tk.BooleanVar(value=True)
+        self.var_intro_conclusion = tk.BooleanVar(value=True)
 
         self.creer_interface()
 
@@ -59,8 +65,7 @@ class AnalyseurApp:
 
         self.frame_actions = ctk.CTkFrame(self.root, corner_radius=15)
         self.frame_actions.grid(row=1, column=0, padx=20, pady=10, sticky="ew")
-
-        self.frame_actions.grid_columnconfigure(3, weight=1)
+        self.frame_actions.grid_columnconfigure(4, weight=1)
 
         bouton_choisir = ctk.CTkButton(
             self.frame_actions,
@@ -74,29 +79,37 @@ class AnalyseurApp:
             self.frame_actions,
             text="Analyser",
             command=self.analyser_document,
-            width=130
+            width=120
         )
         bouton_analyser.grid(row=0, column=1, padx=8, pady=15)
 
         bouton_exporter = ctk.CTkButton(
             self.frame_actions,
-            text="Exporter",
+            text="Exporter rapport",
             command=self.exporter_rapport,
-            width=130
+            width=145
         )
         bouton_exporter.grid(row=0, column=2, padx=8, pady=15)
+
+        bouton_exporter_graphes = ctk.CTkButton(
+            self.frame_actions,
+            text="Exporter graphiques",
+            command=self.exporter_graphiques,
+            width=160
+        )
+        bouton_exporter_graphes.grid(row=0, column=3, padx=8, pady=15)
 
         self.label_fichier = ctk.CTkLabel(
             self.frame_actions,
             text="Aucun fichier sélectionné",
             text_color="gray"
         )
-        self.label_fichier.grid(row=0, column=3, padx=15, pady=15, sticky="w")
+        self.label_fichier.grid(row=0, column=4, padx=15, pady=15, sticky="w")
 
         self.frame_options = ctk.CTkFrame(self.root, corner_radius=15)
         self.frame_options.grid(row=2, column=0, padx=20, pady=10, sticky="nsew")
         self.frame_options.grid_columnconfigure(0, weight=1)
-        self.frame_options.grid_rowconfigure(2, weight=1)
+        self.frame_options.grid_rowconfigure(3, weight=1)
 
         self.creer_options()
         self.creer_onglets()
@@ -120,10 +133,7 @@ class AnalyseurApp:
         self.input_limite_phrase.insert(0, "35")
         self.input_limite_phrase.grid(row=0, column=1, pady=5, sticky="w")
 
-        label_mots = ctk.CTkLabel(
-            frame_ligne_options,
-            text="mots"
-        )
+        label_mots = ctk.CTkLabel(frame_ligne_options, text="mots")
         label_mots.grid(row=0, column=2, padx=8, pady=5, sticky="w")
 
         bouton_mode = ctk.CTkButton(
@@ -134,8 +144,35 @@ class AnalyseurApp:
         )
         bouton_mode.grid(row=0, column=5, padx=5, pady=5, sticky="e")
 
+        frame_filtres = ctk.CTkFrame(self.frame_options, corner_radius=12)
+        frame_filtres.grid(row=1, column=0, padx=15, pady=(10, 5), sticky="ew")
+        frame_filtres.grid_columnconfigure(0, weight=1)
+        frame_filtres.grid_columnconfigure(1, weight=1)
+        frame_filtres.grid_columnconfigure(2, weight=1)
+
+        checkbox_titres = ctk.CTkCheckBox(
+            frame_filtres,
+            text="Ignorer les titres",
+            variable=self.var_ignorer_titres
+        )
+        checkbox_titres.grid(row=0, column=0, padx=15, pady=12, sticky="w")
+
+        checkbox_blocs = ctk.CTkCheckBox(
+            frame_filtres,
+            text="Ignorer figures, tableaux et annexes",
+            variable=self.var_filtrer_blocs
+        )
+        checkbox_blocs.grid(row=0, column=1, padx=15, pady=12, sticky="w")
+
+        checkbox_zone = ctk.CTkCheckBox(
+            frame_filtres,
+            text="Analyser Introduction → Conclusion",
+            variable=self.var_intro_conclusion
+        )
+        checkbox_zone.grid(row=0, column=2, padx=15, pady=12, sticky="w")
+
         frame_termes = ctk.CTkFrame(self.frame_options, corner_radius=12)
-        frame_termes.grid(row=1, column=0, padx=15, pady=(10, 5), sticky="ew")
+        frame_termes.grid(row=2, column=0, padx=15, pady=(10, 5), sticky="ew")
         frame_termes.grid_columnconfigure(0, weight=1)
 
         label_termes = ctk.CTkLabel(
@@ -154,27 +191,25 @@ class AnalyseurApp:
 
         self.zone_saisie_termes = ctk.CTkTextbox(
             frame_termes,
-            height=100,
+            height=90,
             font=ctk.CTkFont(size=13)
         )
         self.zone_saisie_termes.grid(row=2, column=0, padx=15, pady=(0, 15), sticky="ew")
-
         self.zone_saisie_termes.insert("1.0", "\n".join(TERMES_TECHNIQUES_PAR_DEFAUT))
 
     def creer_onglets(self):
-        self.tabview = ctk.CTkTabview(
-            self.frame_options,
-            corner_radius=15
-        )
-        self.tabview.grid(row=2, column=0, padx=15, pady=15, sticky="nsew")
+        self.tabview = ctk.CTkTabview(self.frame_options, corner_radius=15)
+        self.tabview.grid(row=3, column=0, padx=15, pady=15, sticky="nsew")
 
         self.tabview.add("Statistiques")
+        self.tabview.add("Résumé qualité")
         self.tabview.add("Mots fréquents")
         self.tabview.add("Phrases longues")
         self.tabview.add("Termes techniques")
         self.tabview.add("Graphiques")
 
         self.zone_stats = self.creer_zone_texte(self.tabview.tab("Statistiques"))
+        self.zone_resume = self.creer_zone_texte(self.tabview.tab("Résumé qualité"))
         self.zone_mots = self.creer_zone_texte(self.tabview.tab("Mots fréquents"))
         self.zone_phrases = self.creer_zone_texte(self.tabview.tab("Phrases longues"))
         self.zone_termes = self.creer_zone_texte(self.tabview.tab("Termes techniques"))
@@ -236,7 +271,10 @@ class AnalyseurApp:
                 return fichier.read()
 
         if extension == ".pdf":
-            return lire_pdf(self.chemin_fichier)
+            return lire_pdf(
+                self.chemin_fichier,
+                ignorer_titres=self.var_ignorer_titres.get()
+            )
 
         messagebox.showerror(
             "Format non supporté",
@@ -271,7 +309,10 @@ class AnalyseurApp:
         self.resultat = analyser_texte(
             texte,
             limite_phrase_longue=limite_phrase_longue,
-            termes_techniques=termes_techniques
+            termes_techniques=termes_techniques,
+            mode_memoire=self.var_intro_conclusion.get(),
+            filtrer_blocs_non_narratifs_actif=self.var_filtrer_blocs.get(),
+            ignorer_titres=self.var_ignorer_titres.get()
         )
 
         self.afficher_resultat()
@@ -285,6 +326,7 @@ class AnalyseurApp:
         self.vider_resultats()
 
         self.afficher_statistiques()
+        self.afficher_resume_qualite()
         self.afficher_mots_frequents()
         self.afficher_phrases_longues()
         self.afficher_termes_techniques()
@@ -297,6 +339,9 @@ class AnalyseurApp:
             nombre_termes_recherches=len(termes_recherches)
         )
         self.zone_stats.insert("end", contenu)
+
+    def afficher_resume_qualite(self):
+        self.zone_resume.insert("end", formater_resume_qualite(self.resultat))
 
     def recuperer_termes_techniques(self):
         contenu = self.zone_saisie_termes.get("1.0", "end")
@@ -317,6 +362,7 @@ class AnalyseurApp:
             widget.destroy()
 
         figure, message = creer_figure_analyse(self.resultat)
+        self.figure_graphes = figure
 
         if message:
             label = ctk.CTkLabel(self.frame_graphes, text=message)
@@ -332,6 +378,7 @@ class AnalyseurApp:
     def vider_resultats(self):
         zones = [
             self.zone_stats,
+            self.zone_resume,
             self.zone_mots,
             self.zone_phrases,
             self.zone_termes
@@ -343,6 +390,8 @@ class AnalyseurApp:
         for widget in self.frame_graphes.winfo_children():
             widget.destroy()
 
+        self.figure_graphes = None
+
     def exporter_rapport(self):
         if not self.resultat:
             messagebox.showwarning(
@@ -353,9 +402,12 @@ class AnalyseurApp:
 
         chemin_sortie = filedialog.asksaveasfilename(
             title="Exporter le rapport",
-            defaultextension=".txt",
+            defaultextension=".pdf",
             filetypes=[
-                ("Fichier texte", "*.txt")
+                ("Rapport PDF", "*.pdf"),
+                ("Page HTML", "*.html"),
+                ("Fichier texte", "*.txt"),
+                ("CSV phrases longues", "*.csv")
             ]
         )
 
@@ -364,4 +416,29 @@ class AnalyseurApp:
             messagebox.showinfo(
                 "Export terminé",
                 "Le rapport a bien été exporté."
+            )
+
+    def exporter_graphiques(self):
+        if not self.resultat or not self.figure_graphes:
+            messagebox.showwarning(
+                "Aucun graphique",
+                "Veuillez analyser un document avec des données graphiques avant d'exporter."
+            )
+            return
+
+        chemin_sortie = filedialog.asksaveasfilename(
+            title="Exporter les graphiques",
+            defaultextension=".png",
+            filetypes=[
+                ("Image PNG", "*.png"),
+                ("Document PDF", "*.pdf"),
+                ("Image SVG", "*.svg")
+            ]
+        )
+
+        if chemin_sortie:
+            exporter_graphiques(self.figure_graphes, chemin_sortie)
+            messagebox.showinfo(
+                "Export terminé",
+                "Les graphiques ont bien été exportés."
             )
