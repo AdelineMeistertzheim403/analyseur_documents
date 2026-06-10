@@ -21,6 +21,19 @@ def _lignes_liste(titre, elements):
     return lignes
 
 
+def _lignes_dictionnaire(titre, donnees):
+    lignes = ["", f"{titre} :"]
+
+    if not donnees:
+        lignes.append("- Aucune donnée.")
+        return lignes
+
+    for cle, valeur in donnees.items():
+        lignes.append(f"- {cle} : {valeur}")
+
+    return lignes
+
+
 def _generer_lignes_rapport(resultat):
     lignes = [
         "=== Rapport d'analyse ===",
@@ -41,6 +54,20 @@ def _generer_lignes_rapport(resultat):
             f"- Phrases longues : {lisibilite['pourcentage_phrases_longues']:.1f} %",
         ])
 
+    indice_style = resultat.get("indice_style_artificiel")
+    if indice_style:
+        lignes.extend([
+            "",
+            "Indice de style potentiellement artificiel :",
+            f"- Niveau : {indice_style['niveau']}",
+            f"- Score : {indice_style['score']} / 100",
+            f"- Diversité lexicale : {indice_style['diversite_lexicale']:.2f}",
+            f"- Régularité des phrases : {indice_style['regularite_phrases']:.2f}",
+            f"- Note : {indice_style['note']}",
+        ])
+        lignes.extend(_lignes_liste("Signaux", indice_style.get("signaux", [])))
+        lignes.extend(_lignes_dictionnaire("Détail des signaux", indice_style.get("details", {})))
+
     resume = resultat.get("resume_qualite")
     if resume:
         lignes.extend([
@@ -56,6 +83,12 @@ def _generer_lignes_rapport(resultat):
     lignes.extend(["", "Mots les plus fréquents :"])
     for mot, frequence in resultat["mots_frequents"]:
         lignes.append(f"- {mot} : {frequence}")
+
+    lignes.extend(_lignes_dictionnaire("Connecteurs logiques fréquents", resultat.get("connecteurs_frequents", {})))
+    lignes.extend(_lignes_dictionnaire("Formules génériques repérées", resultat.get("formules_generiques", {})))
+    lignes.extend(_lignes_dictionnaire("Répartition des longueurs", resultat.get("repartition_longueurs", {})))
+    lignes.extend(_lignes_dictionnaire("Phrases longues par page", resultat.get("phrases_longues_par_page", {})))
+    lignes.extend(_lignes_dictionnaire("Alertes de complexité", resultat.get("alertes_complexite", {})))
 
     lignes.extend(["", "Phrases trop longues :"])
     if not resultat["phrases_longues"]:

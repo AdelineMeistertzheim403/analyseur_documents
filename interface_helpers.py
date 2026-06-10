@@ -46,6 +46,23 @@ def formater_statistiques(resultat, nombre_termes_recherches):
             f"Phrases longues : {lisibilite['pourcentage_phrases_longues']:.1f} %"
         ])
 
+    indice_style = resultat.get("indice_style_artificiel")
+    if indice_style:
+        lignes.extend([
+            "",
+            "INDICE DE STYLE POTENTIELLEMENT ARTIFICIEL",
+            f"Niveau : {indice_style['niveau']}",
+            f"Score : {indice_style['score']} / 100",
+            f"Diversité lexicale : {indice_style['diversite_lexicale']:.2f}",
+            f"Régularité des phrases : {indice_style['regularite_phrases']:.2f}",
+            indice_style["note"]
+        ])
+
+        if indice_style.get("signaux"):
+            lignes.append("Signaux :")
+            for signal in indice_style["signaux"]:
+                lignes.append(f"- {signal}")
+
     lignes.append("")
     lignes.append(f"Nombre de termes techniques recherchés : {nombre_termes_recherches}")
 
@@ -97,6 +114,18 @@ def formater_mots_frequents(resultat):
 
     for index, (mot, frequence) in enumerate(mots_frequents, start=1):
         lignes.append(f"{index}. {mot} : {frequence}")
+
+    connecteurs = resultat.get("connecteurs_frequents", {})
+    if connecteurs:
+        lignes.extend(["", "CONNECTEURS LOGIQUES FRÉQUENTS", ""])
+        for connecteur, frequence in connecteurs.items():
+            lignes.append(f"- {connecteur} : {frequence}")
+
+    formules = resultat.get("formules_generiques", {})
+    if formules:
+        lignes.extend(["", "FORMULES GÉNÉRIQUES REPÉRÉES", ""])
+        for formule, frequence in formules.items():
+            lignes.append(f"- {formule} : {frequence}")
 
     return "\n".join(lignes) + "\n"
 
@@ -161,6 +190,190 @@ def formater_termes_techniques(resultat):
     return "\n".join(lignes) + "\n"
 
 
+def _afficher_message(axe, titre, message="Aucune donnée"):
+    axe.set_title(titre)
+    axe.text(0.5, 0.5, message, ha="center", va="center", wrap=True)
+    axe.set_xticks([])
+    axe.set_yticks([])
+
+
+def _barres_horizontales(axe, donnees, titre, couleur):
+    if not donnees:
+        _afficher_message(axe, titre)
+        return
+
+    labels = list(donnees.keys())
+    valeurs = list(donnees.values())
+    axe.barh(labels, valeurs, color=couleur)
+    axe.invert_yaxis()
+    axe.set_title(titre)
+    axe.set_xlabel("Nombre")
+
+
+def _creer_figure_simple():
+    from matplotlib.figure import Figure
+
+    return Figure(figsize=(9.5, 5.2), dpi=100)
+
+
+def _figure_histogramme_longueurs(resultat):
+    longueurs = resultat.get("longueurs_phrases", [])
+    figure = _creer_figure_simple()
+    axe = figure.add_subplot(111)
+
+    if longueurs:
+        nb_classes = min(20, max(5, int(len(longueurs) ** 0.5)))
+        axe.hist(longueurs, bins=nb_classes, color="#4E79A7", edgecolor="white")
+        axe.set_xlabel("Mots par phrase")
+        axe.set_ylabel("Nombre de phrases")
+    else:
+        _afficher_message(axe, "Distribution des longueurs")
+
+    axe.set_title("Distribution des longueurs de phrases")
+    figure.tight_layout()
+    return "Distribution des longueurs", figure
+
+
+def _figure_repartition_longueurs(resultat):
+    figure = _creer_figure_simple()
+    axe = figure.add_subplot(111)
+    donnees = {
+        cle: valeur
+        for cle, valeur in resultat.get("repartition_longueurs", {}).items()
+        if valeur > 0
+    }
+
+    _barres_horizontales(axe, donnees, "Phrases par niveau de longueur", "#59A14F")
+    figure.tight_layout()
+    return "Phrases par niveau", figure
+
+
+def _figure_phrases_longues_par_page(resultat):
+    figure = _creer_figure_simple()
+    axe = figure.add_subplot(111)
+    donnees = resultat.get("phrases_longues_par_page", {})
+
+    if donnees:
+        pages = list(donnees.keys())
+        valeurs = list(donnees.values())
+        axe.bar([str(page) for page in pages], valeurs, color="#E15759")
+        axe.set_xlabel("Page")
+        axe.set_ylabel("Nombre de phrases longues")
+        axe.set_title("Phrases longues par page")
+    else:
+        _afficher_message(axe, "Phrases longues par page", "Disponible pour les PDF")
+
+    figure.tight_layout()
+    return "Phrases longues par page", figure
+
+
+def _figure_score_lisibilite(resultat):
+    figure = _creer_figure_simple()
+    axe = figure.add_subplot(111)
+    lisibilite = resultat.get("lisibilite", {})
+    score = lisibilite.get("score", 0)
+    niveau = lisibilite.get("niveau", "Non calculable")
+
+    axe.barh(["Lisibilité"], [score], color="#76B7B2")
+    axe.set_xlim(0, 100)
+    axe.set_xlabel("Score / 100")
+    axe.set_title(f"Score de lisibilité - {niveau}")
+    axe.text(min(score + 2, 96), 0, str(score), va="center")
+    figure.tight_layout()
+    return "Score de lisibilité", figure
+
+
+def _figure_termes_techniques(resultat):
+    figure = _creer_figure_simple()
+    axe = figure.add_subplot(111)
+    donnees = {
+        item["terme"]: item["occurrences"]
+        for item in resultat.get("termes_techniques", [])[:10]
+    }
+
+    _barres_horizontales(axe, donnees, "Termes techniques les plus présents", "#F28E2B")
+    figure.tight_layout()
+    return "Termes techniques", figure
+
+
+def _figure_termes_trouves_absents(resultat):
+    figure = _creer_figure_simple()
+    axe = figure.add_subplot(111)
+    termes = resultat.get("termes_techniques", [])
+    termes_absents = resultat.get("termes_techniques_absents", [])
+
+    axe.bar(
+        ["Trouvés", "Non trouvés"],
+        [len(termes), len(termes_absents)],
+        color=["#59A14F", "#E15759"]
+    )
+    axe.set_ylabel("Nombre")
+    axe.set_title("Termes techniques trouvés / non trouvés")
+    figure.tight_layout()
+    return "Termes trouvés / absents", figure
+
+
+def _figure_alertes_complexite(resultat):
+    figure = _creer_figure_simple()
+    axe = figure.add_subplot(111)
+    _barres_horizontales(
+        axe,
+        resultat.get("alertes_complexite", {}),
+        "Alertes de complexité",
+        "#B07AA1"
+    )
+    figure.tight_layout()
+    return "Alertes de complexité", figure
+
+
+def _figure_connecteurs_frequents(resultat):
+    figure = _creer_figure_simple()
+    axe = figure.add_subplot(111)
+    _barres_horizontales(
+        axe,
+        resultat.get("connecteurs_frequents", {}),
+        "Connecteurs logiques fréquents",
+        "#EDC948"
+    )
+    figure.tight_layout()
+    return "Connecteurs fréquents", figure
+
+
+def _figure_signaux_style(resultat):
+    figure = _creer_figure_simple()
+    axe = figure.add_subplot(111)
+    indice_style = resultat.get("indice_style_artificiel", {})
+    _barres_horizontales(
+        axe,
+        indice_style.get("details", {}),
+        "Signaux de style potentiellement artificiel",
+        "#9C755F"
+    )
+    if indice_style:
+        axe.set_xlabel(f"Score total : {indice_style.get('score', 0)} / 100")
+    figure.tight_layout()
+    return "Signaux de style", figure
+
+
+def creer_figures_analyse(resultat):
+    try:
+        figures = [
+            _figure_histogramme_longueurs(resultat),
+            _figure_repartition_longueurs(resultat),
+            _figure_phrases_longues_par_page(resultat),
+            _figure_score_lisibilite(resultat),
+            _figure_termes_techniques(resultat),
+            _figure_termes_trouves_absents(resultat),
+            _figure_alertes_complexite(resultat),
+            _figure_connecteurs_frequents(resultat),
+            _figure_signaux_style(resultat),
+        ]
+    except ImportError:
+        return [], "Matplotlib n'est pas installé.\nInstalle-le avec : pip install matplotlib"
+
+    return figures, None
+
+
 def creer_figure_analyse(resultat):
     try:
         from matplotlib.figure import Figure
@@ -169,38 +382,77 @@ def creer_figure_analyse(resultat):
 
     longueurs = resultat.get("longueurs_phrases", [])
     mots_frequents = resultat.get("mots_frequents", [])
+    repartition = resultat.get("repartition_longueurs", {})
+    longues_par_page = resultat.get("phrases_longues_par_page", {})
+    termes = resultat.get("termes_techniques", [])
+    termes_absents = resultat.get("termes_techniques_absents", [])
+    alertes = resultat.get("alertes_complexite", {})
+    connecteurs = resultat.get("connecteurs_frequents", {})
+    indice_style = resultat.get("indice_style_artificiel", {})
+    lisibilite = resultat.get("lisibilite", {})
 
-    if not longueurs and not mots_frequents:
+    if not any([longueurs, mots_frequents, repartition, termes, alertes, connecteurs, indice_style]):
         return None, "Pas de données pour afficher les graphiques."
 
-    figure = Figure(figsize=(10, 4.8), dpi=100)
-    axe_hist = figure.add_subplot(1, 2, 1)
-    axe_mots = figure.add_subplot(1, 2, 2)
+    figure = Figure(figsize=(13.5, 9), dpi=100)
+    axes = [figure.add_subplot(3, 3, index) for index in range(1, 10)]
 
+    axe_hist = axes[0]
     if longueurs:
         nb_classes = min(20, max(5, int(len(longueurs) ** 0.5)))
         axe_hist.hist(longueurs, bins=nb_classes, color="#4E79A7", edgecolor="white")
-        axe_hist.set_title("Distribution des longueurs de phrases")
-        axe_hist.set_xlabel("Nombre de mots")
-        axe_hist.set_ylabel("Nombre de phrases")
+        axe_hist.set_title("Distribution des longueurs")
+        axe_hist.set_xlabel("Mots par phrase")
+        axe_hist.set_ylabel("Phrases")
     else:
-        axe_hist.text(0.5, 0.5, "Aucune phrase exploitable", ha="center", va="center")
-        axe_hist.set_title("Distribution des longueurs de phrases")
-        axe_hist.set_xticks([])
-        axe_hist.set_yticks([])
+        _afficher_message(axe_hist, "Distribution des longueurs")
 
-    if mots_frequents:
-        mots = [mot for mot, _ in mots_frequents]
-        frequences = [frequence for _, frequence in mots_frequents]
-        axe_mots.barh(mots, frequences, color="#59A14F")
-        axe_mots.invert_yaxis()
-        axe_mots.set_title("Top mots fréquents")
-        axe_mots.set_xlabel("Fréquence")
+    _barres_horizontales(
+        axes[1],
+        {cle: valeur for cle, valeur in repartition.items() if valeur > 0},
+        "Phrases par niveau",
+        "#59A14F"
+    )
+
+    if longues_par_page:
+        pages = list(longues_par_page.keys())
+        valeurs = list(longues_par_page.values())
+        axes[2].bar([str(page) for page in pages], valeurs, color="#E15759")
+        axes[2].set_title("Phrases longues par page")
+        axes[2].set_xlabel("Page")
+        axes[2].set_ylabel("Phrases")
     else:
-        axe_mots.text(0.5, 0.5, "Aucun mot fréquent", ha="center", va="center")
-        axe_mots.set_title("Top mots fréquents")
-        axe_mots.set_xticks([])
-        axe_mots.set_yticks([])
+        _afficher_message(axes[2], "Phrases longues par page", "Disponible pour les PDF")
+
+    score_lisibilite = lisibilite.get("score", 0)
+    axes[3].barh(["Lisibilité"], [score_lisibilite], color="#76B7B2")
+    axes[3].set_xlim(0, 100)
+    axes[3].set_title("Score de lisibilité")
+    axes[3].set_xlabel("/ 100")
+    axes[3].text(score_lisibilite + 2, 0, str(score_lisibilite), va="center")
+
+    termes_graphique = {
+        item["terme"]: item["occurrences"]
+        for item in termes[:8]
+    }
+    _barres_horizontales(axes[4], termes_graphique, "Termes techniques", "#F28E2B")
+
+    axes[5].bar(
+        ["Trouvés", "Non trouvés"],
+        [len(termes), len(termes_absents)],
+        color=["#59A14F", "#E15759"]
+    )
+    axes[5].set_title("Termes trouvés / absents")
+    axes[5].set_ylabel("Nombre")
+
+    _barres_horizontales(axes[6], alertes, "Alertes de complexité", "#B07AA1")
+
+    _barres_horizontales(axes[7], connecteurs, "Connecteurs fréquents", "#EDC948")
+
+    signaux_style = indice_style.get("details", {})
+    _barres_horizontales(axes[8], signaux_style, "Signaux de style artificiel", "#9C755F")
+    if indice_style:
+        axes[8].set_xlabel(f"Score total : {indice_style.get('score', 0)} / 100")
 
     figure.tight_layout()
     return figure, None

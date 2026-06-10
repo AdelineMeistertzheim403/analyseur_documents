@@ -9,7 +9,7 @@ from lecteur_pdf import lire_pdf
 from export_pdf import exporter_graphiques, exporter_resultat
 from interface_helpers import (
     TERMES_TECHNIQUES_PAR_DEFAUT,
-    creer_figure_analyse,
+    creer_figures_analyse,
     extraire_termes_depuis_texte,
     formater_mots_frequents,
     formater_phrases_longues,
@@ -33,6 +33,10 @@ class AnalyseurApp:
         self.resultat = None
         self.canvas_graphes = None
         self.figure_graphes = None
+        self.figures_graphes = []
+        self.index_graphe = 0
+        self.label_graphe = None
+        self.zone_canvas_graphes = None
 
         self.var_ignorer_titres = tk.BooleanVar(value=True)
         self.var_filtrer_blocs = tk.BooleanVar(value=True)
@@ -42,7 +46,7 @@ class AnalyseurApp:
 
     def creer_interface(self):
         self.root.grid_columnconfigure(0, weight=1)
-        self.root.grid_rowconfigure(2, weight=1)
+        self.root.grid_rowconfigure(1, weight=1)
 
         self.frame_header = ctk.CTkFrame(self.root, corner_radius=15)
         self.frame_header.grid(row=0, column=0, padx=20, pady=(20, 10), sticky="ew")
@@ -63,12 +67,24 @@ class AnalyseurApp:
         )
         sous_titre.grid(row=1, column=0, padx=20, pady=(0, 15), sticky="w")
 
-        self.frame_actions = ctk.CTkFrame(self.root, corner_radius=15)
-        self.frame_actions.grid(row=1, column=0, padx=20, pady=10, sticky="ew")
-        self.frame_actions.grid_columnconfigure(4, weight=1)
+        self.onglets_principaux = ctk.CTkTabview(self.root, corner_radius=15)
+        self.onglets_principaux.grid(row=1, column=0, padx=20, pady=(0, 20), sticky="nsew")
+        self.onglets_principaux.add("Configuration")
+        self.onglets_principaux.add("Rapport d'analyse")
+
+        self.creer_configuration(self.onglets_principaux.tab("Configuration"))
+        self.creer_onglets_rapport(self.onglets_principaux.tab("Rapport d'analyse"))
+
+    def creer_configuration(self, parent):
+        parent.grid_columnconfigure(0, weight=1)
+        parent.grid_rowconfigure(3, weight=1)
+
+        frame_actions = ctk.CTkFrame(parent, corner_radius=12)
+        frame_actions.grid(row=0, column=0, padx=10, pady=10, sticky="ew")
+        frame_actions.grid_columnconfigure(4, weight=1)
 
         bouton_choisir = ctk.CTkButton(
-            self.frame_actions,
+            frame_actions,
             text="Choisir un fichier",
             command=self.choisir_fichier,
             width=160
@@ -76,7 +92,7 @@ class AnalyseurApp:
         bouton_choisir.grid(row=0, column=0, padx=(15, 8), pady=15)
 
         bouton_analyser = ctk.CTkButton(
-            self.frame_actions,
+            frame_actions,
             text="Analyser",
             command=self.analyser_document,
             width=120
@@ -84,7 +100,7 @@ class AnalyseurApp:
         bouton_analyser.grid(row=0, column=1, padx=8, pady=15)
 
         bouton_exporter = ctk.CTkButton(
-            self.frame_actions,
+            frame_actions,
             text="Exporter rapport",
             command=self.exporter_rapport,
             width=145
@@ -92,7 +108,7 @@ class AnalyseurApp:
         bouton_exporter.grid(row=0, column=2, padx=8, pady=15)
 
         bouton_exporter_graphes = ctk.CTkButton(
-            self.frame_actions,
+            frame_actions,
             text="Exporter graphiques",
             command=self.exporter_graphiques,
             width=160
@@ -100,52 +116,43 @@ class AnalyseurApp:
         bouton_exporter_graphes.grid(row=0, column=3, padx=8, pady=15)
 
         self.label_fichier = ctk.CTkLabel(
-            self.frame_actions,
+            frame_actions,
             text="Aucun fichier sélectionné",
             text_color="gray"
         )
         self.label_fichier.grid(row=0, column=4, padx=15, pady=15, sticky="w")
 
-        self.frame_options = ctk.CTkFrame(self.root, corner_radius=15)
-        self.frame_options.grid(row=2, column=0, padx=20, pady=10, sticky="nsew")
-        self.frame_options.grid_columnconfigure(0, weight=1)
-        self.frame_options.grid_rowconfigure(3, weight=1)
-
-        self.creer_options()
-        self.creer_onglets()
-
-    def creer_options(self):
-        frame_ligne_options = ctk.CTkFrame(self.frame_options, fg_color="transparent")
-        frame_ligne_options.grid(row=0, column=0, padx=15, pady=(15, 5), sticky="ew")
-        frame_ligne_options.grid_columnconfigure(4, weight=1)
+        frame_options = ctk.CTkFrame(parent, corner_radius=12)
+        frame_options.grid(row=1, column=0, padx=10, pady=(0, 10), sticky="ew")
+        frame_options.grid_columnconfigure(4, weight=1)
 
         label_limite = ctk.CTkLabel(
-            frame_ligne_options,
+            frame_options,
             text="Phrase trop longue à partir de :"
         )
-        label_limite.grid(row=0, column=0, padx=(0, 8), pady=5, sticky="w")
+        label_limite.grid(row=0, column=0, padx=(15, 8), pady=15, sticky="w")
 
         self.input_limite_phrase = ctk.CTkEntry(
-            frame_ligne_options,
+            frame_options,
             width=70,
             justify="center"
         )
         self.input_limite_phrase.insert(0, "35")
-        self.input_limite_phrase.grid(row=0, column=1, pady=5, sticky="w")
+        self.input_limite_phrase.grid(row=0, column=1, pady=15, sticky="w")
 
-        label_mots = ctk.CTkLabel(frame_ligne_options, text="mots")
-        label_mots.grid(row=0, column=2, padx=8, pady=5, sticky="w")
+        label_mots = ctk.CTkLabel(frame_options, text="mots")
+        label_mots.grid(row=0, column=2, padx=8, pady=15, sticky="w")
 
         bouton_mode = ctk.CTkButton(
-            frame_ligne_options,
+            frame_options,
             text="Changer thème",
             command=self.changer_theme,
             width=130
         )
-        bouton_mode.grid(row=0, column=5, padx=5, pady=5, sticky="e")
+        bouton_mode.grid(row=0, column=5, padx=15, pady=15, sticky="e")
 
-        frame_filtres = ctk.CTkFrame(self.frame_options, corner_radius=12)
-        frame_filtres.grid(row=1, column=0, padx=15, pady=(10, 5), sticky="ew")
+        frame_filtres = ctk.CTkFrame(parent, corner_radius=12)
+        frame_filtres.grid(row=2, column=0, padx=10, pady=(0, 10), sticky="ew")
         frame_filtres.grid_columnconfigure(0, weight=1)
         frame_filtres.grid_columnconfigure(1, weight=1)
         frame_filtres.grid_columnconfigure(2, weight=1)
@@ -171,16 +178,17 @@ class AnalyseurApp:
         )
         checkbox_zone.grid(row=0, column=2, padx=15, pady=12, sticky="w")
 
-        frame_termes = ctk.CTkFrame(self.frame_options, corner_radius=12)
-        frame_termes.grid(row=2, column=0, padx=15, pady=(10, 5), sticky="ew")
+        frame_termes = ctk.CTkFrame(parent, corner_radius=12)
+        frame_termes.grid(row=3, column=0, padx=10, pady=(0, 10), sticky="nsew")
         frame_termes.grid_columnconfigure(0, weight=1)
+        frame_termes.grid_rowconfigure(2, weight=1)
 
         label_termes = ctk.CTkLabel(
             frame_termes,
             text="Termes techniques à rechercher",
             font=ctk.CTkFont(size=14, weight="bold")
         )
-        label_termes.grid(row=0, column=0, padx=15, pady=(10, 0), sticky="w")
+        label_termes.grid(row=0, column=0, padx=15, pady=(12, 0), sticky="w")
 
         aide_termes = ctk.CTkLabel(
             frame_termes,
@@ -191,15 +199,18 @@ class AnalyseurApp:
 
         self.zone_saisie_termes = ctk.CTkTextbox(
             frame_termes,
-            height=90,
+            height=170,
             font=ctk.CTkFont(size=13)
         )
-        self.zone_saisie_termes.grid(row=2, column=0, padx=15, pady=(0, 15), sticky="ew")
+        self.zone_saisie_termes.grid(row=2, column=0, padx=15, pady=(0, 15), sticky="nsew")
         self.zone_saisie_termes.insert("1.0", "\n".join(TERMES_TECHNIQUES_PAR_DEFAUT))
 
-    def creer_onglets(self):
-        self.tabview = ctk.CTkTabview(self.frame_options, corner_radius=15)
-        self.tabview.grid(row=3, column=0, padx=15, pady=15, sticky="nsew")
+    def creer_onglets_rapport(self, parent):
+        parent.grid_columnconfigure(0, weight=1)
+        parent.grid_rowconfigure(0, weight=1)
+
+        self.tabview = ctk.CTkTabview(parent, corner_radius=15)
+        self.tabview.grid(row=0, column=0, padx=10, pady=10, sticky="nsew")
 
         self.tabview.add("Statistiques")
         self.tabview.add("Résumé qualité")
@@ -227,6 +238,34 @@ class AnalyseurApp:
     def creer_zone_graphiques(self, parent):
         frame = ctk.CTkFrame(parent)
         frame.pack(expand=True, fill="both", padx=10, pady=10)
+        frame.grid_columnconfigure(1, weight=1)
+        frame.grid_rowconfigure(1, weight=1)
+
+        bouton_precedent = ctk.CTkButton(
+            frame,
+            text="Précédent",
+            command=self.afficher_graphe_precedent,
+            width=120
+        )
+        bouton_precedent.grid(row=0, column=0, padx=10, pady=10, sticky="w")
+
+        self.label_graphe = ctk.CTkLabel(
+            frame,
+            text="Aucun graphique",
+            font=ctk.CTkFont(size=14, weight="bold")
+        )
+        self.label_graphe.grid(row=0, column=1, padx=10, pady=10)
+
+        bouton_suivant = ctk.CTkButton(
+            frame,
+            text="Suivant",
+            command=self.afficher_graphe_suivant,
+            width=120
+        )
+        bouton_suivant.grid(row=0, column=2, padx=10, pady=10, sticky="e")
+
+        self.zone_canvas_graphes = ctk.CTkFrame(frame, fg_color="transparent")
+        self.zone_canvas_graphes.grid(row=1, column=0, columnspan=3, sticky="nsew")
         return frame
 
     def changer_theme(self):
@@ -316,6 +355,7 @@ class AnalyseurApp:
         )
 
         self.afficher_resultat()
+        self.onglets_principaux.set("Rapport d'analyse")
 
         messagebox.showinfo(
             "Analyse terminée",
@@ -358,22 +398,60 @@ class AnalyseurApp:
         self.zone_termes.insert("end", formater_termes_techniques(self.resultat))
 
     def afficher_graphiques(self):
-        for widget in self.frame_graphes.winfo_children():
+        for widget in self.zone_canvas_graphes.winfo_children():
             widget.destroy()
 
-        figure, message = creer_figure_analyse(self.resultat)
-        self.figure_graphes = figure
+        self.figures_graphes, message = creer_figures_analyse(self.resultat)
+        self.index_graphe = 0
 
         if message:
-            label = ctk.CTkLabel(self.frame_graphes, text=message)
+            self.figure_graphes = None
+            self.label_graphe.configure(text="Aucun graphique")
+            label = ctk.CTkLabel(self.zone_canvas_graphes, text=message)
             label.pack(expand=True)
             return
 
+        if not self.figures_graphes:
+            self.figure_graphes = None
+            self.label_graphe.configure(text="Aucun graphique")
+            label = ctk.CTkLabel(
+                self.zone_canvas_graphes,
+                text="Pas de données pour afficher les graphiques."
+            )
+            label.pack(expand=True)
+            return
+
+        self.afficher_graphe_courant()
+
+    def afficher_graphe_courant(self):
+        for widget in self.zone_canvas_graphes.winfo_children():
+            widget.destroy()
+
+        titre, figure = self.figures_graphes[self.index_graphe]
+        self.figure_graphes = figure
+        self.label_graphe.configure(
+            text=f"{self.index_graphe + 1}/{len(self.figures_graphes)} - {titre}"
+        )
+
         from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 
-        self.canvas_graphes = FigureCanvasTkAgg(figure, master=self.frame_graphes)
+        self.canvas_graphes = FigureCanvasTkAgg(figure, master=self.zone_canvas_graphes)
         self.canvas_graphes.draw()
         self.canvas_graphes.get_tk_widget().pack(expand=True, fill="both")
+
+    def afficher_graphe_precedent(self):
+        if not self.figures_graphes:
+            return
+
+        self.index_graphe = (self.index_graphe - 1) % len(self.figures_graphes)
+        self.afficher_graphe_courant()
+
+    def afficher_graphe_suivant(self):
+        if not self.figures_graphes:
+            return
+
+        self.index_graphe = (self.index_graphe + 1) % len(self.figures_graphes)
+        self.afficher_graphe_courant()
 
     def vider_resultats(self):
         zones = [
@@ -387,10 +465,16 @@ class AnalyseurApp:
         for zone in zones:
             zone.delete("1.0", "end")
 
-        for widget in self.frame_graphes.winfo_children():
-            widget.destroy()
+        if self.zone_canvas_graphes:
+            for widget in self.zone_canvas_graphes.winfo_children():
+                widget.destroy()
+
+        if self.label_graphe:
+            self.label_graphe.configure(text="Aucun graphique")
 
         self.figure_graphes = None
+        self.figures_graphes = []
+        self.index_graphe = 0
 
     def exporter_rapport(self):
         if not self.resultat:

@@ -57,7 +57,19 @@ Il inclut :
   - analyser seulement la zone Introduction → Conclusion.
 - Graphiques :
   - distribution des longueurs de phrases,
+  - répartition des phrases par niveau de longueur,
+  - phrases longues par page,
+  - score de lisibilité,
+  - termes techniques trouvés et absents,
+  - alertes de complexité,
+  - connecteurs fréquents,
+  - signaux de style potentiellement artificiel,
   - top des mots les plus fréquents.
+- Indice de style potentiellement artificiel :
+  - régularité des longueurs de phrases,
+  - fréquence des connecteurs logiques,
+  - formules génériques,
+  - diversité lexicale.
 - Export du rapport aux formats `.pdf`, `.html`, `.txt` et `.csv`.
 - Export des graphiques aux formats `.png`, `.pdf` et `.svg`.
 - Bascule thème clair/sombre.
@@ -498,20 +510,20 @@ python3 main.py
 
 Étapes dans l'interface :
 
-1. Cliquer sur `Choisir un fichier`.
-2. Sélectionner un document `.txt` ou `.pdf`.
-3. Définir la limite `Phrase trop longue à partir de`.
-4. Ajuster les options d'analyse si besoin.
-5. Cliquer sur `Analyser`.
-6. Consulter les onglets :
+1. Ouvrir l'onglet principal `Configuration`.
+2. Cliquer sur `Choisir un fichier`.
+3. Sélectionner un document `.txt` ou `.pdf`.
+4. Définir la limite `Phrase trop longue à partir de`.
+5. Ajuster les options d'analyse si besoin.
+6. Cliquer sur `Analyser`.
+7. Consulter l'onglet principal `Rapport d'analyse`, qui contient :
    - `Statistiques`
    - `Résumé qualité`
    - `Mots fréquents`
    - `Phrases longues`
    - `Termes techniques`
    - `Graphiques`
-7. Cliquer sur `Exporter rapport` pour enregistrer un rapport.
-8. Cliquer sur `Exporter graphiques` pour enregistrer les graphiques.
+8. Revenir dans `Configuration` pour cliquer sur `Exporter rapport` ou `Exporter graphiques`.
 
 ## 6. Détails de l'analyse
 
@@ -581,6 +593,42 @@ Les graphiques peuvent être exportés en :
 - `.pdf`,
 - `.svg`.
 
+### 6.7 Indice de style potentiellement artificiel
+
+L'application calcule un indice de style potentiellement artificiel.
+
+Cet indice ne prouve pas qu'un texte a été généré par IA. Il sert uniquement à signaler des caractéristiques stylistiques qui peuvent mériter une relecture.
+
+Les signaux utilisés sont :
+
+- phrases de longueur très régulière,
+- connecteurs logiques fréquents,
+- formules génériques répétées,
+- diversité lexicale faible.
+
+Le résultat est affiché avec :
+
+- un niveau : `Faible`, `Moyen` ou `Élevé`,
+- un score sur 100,
+- une liste de signaux détectés,
+- une note de prudence.
+
+### 6.8 Graphiques disponibles
+
+L'onglet `Graphiques` regroupe plusieurs visualisations :
+
+- histogramme des longueurs de phrases,
+- répartition des phrases courtes, moyennes, longues et très longues,
+- phrases longues par page pour les PDF,
+- barre de score de lisibilité,
+- occurrences des termes techniques,
+- comparaison termes trouvés / non trouvés,
+- alertes de complexité,
+- connecteurs logiques fréquents,
+- signaux de style potentiellement artificiel.
+
+Les graphiques sont affichés un par un dans l'interface. Utiliser les boutons `Précédent` et `Suivant` pour naviguer entre les visualisations.
+
 ## 7. Structure des résultats
 
 La fonction `analyser_texte(...)` retourne un dictionnaire de ce type :
@@ -593,6 +641,12 @@ La fonction `analyser_texte(...)` retourne un dictionnaire de ce type :
     "mots_frequents": list[tuple[str, int]],
     "phrases_longues": list[dict],
     "longueurs_phrases": list[int],
+    "repartition_longueurs": dict,
+    "phrases_longues_par_page": dict,
+    "alertes_complexite": dict,
+    "connecteurs_frequents": dict,
+    "formules_generiques": dict,
+    "indice_style_artificiel": dict,
     "lisibilite": dict,
     "termes_techniques": list[dict],
     "termes_techniques_absents": list[str],
