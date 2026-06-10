@@ -145,8 +145,15 @@ Sur Ubuntu ou Debian :
 
 ```bash
 sudo apt update
-sudo apt install python3 python3-pip python3-venv
+sudo apt install python3 python3-pip python3-venv python3-tk
 ```
+
+Sur certaines versions d'Ubuntu, `pip` et la création d'environnements virtuels ne sont pas installés par défaut. Les paquets importants sont donc :
+
+- `python3` : le langage Python,
+- `python3-pip` : l'outil d'installation des dépendances,
+- `python3-venv` : la création de l'environnement virtuel `.venv`,
+- `python3-tk` : nécessaire pour l'interface graphique Tkinter.
 
 Sur Fedora :
 
@@ -164,7 +171,14 @@ Vérifier ensuite :
 
 ```bash
 python3 --version
-pip3 --version
+python3 -m pip --version
+```
+
+Si `python3 -m pip --version` affiche `No module named pip`, installer ou réinstaller `pip` :
+
+```bash
+sudo apt update
+sudo apt install python3-pip
 ```
 
 ### 4.2 Récupérer le projet
@@ -202,6 +216,20 @@ py -m venv .venv
 python3 -m venv .venv
 ```
 
+Vérifier ensuite que le fichier d'activation existe :
+
+```bash
+ls .venv/bin/activate
+```
+
+Si cette commande affiche `Aucun fichier ou dossier de ce nom`, l'environnement virtuel n'a pas été créé. Sur Ubuntu / Debian, installer d'abord le paquet manquant :
+
+```bash
+sudo apt update
+sudo apt install python3-venv
+python3 -m venv .venv
+```
+
 ### 4.4 Activer l'environnement virtuel
 
 #### Windows PowerShell
@@ -236,6 +264,20 @@ source .venv/bin/activate
 
 Une fois activé, le terminal affiche généralement `(.venv)` au début de la ligne.
 
+Attention : il faut bien activer le fichier `activate`, pas le dossier `bin`.
+
+Commande correcte :
+
+```bash
+source .venv/bin/activate
+```
+
+Commande incorrecte :
+
+```bash
+source .venv/bin
+```
+
 ### 4.5 Installer les dépendances
 
 Avec l'environnement virtuel activé :
@@ -250,9 +292,18 @@ python -m pip install customtkinter pymupdf matplotlib
 #### macOS / Linux
 
 ```bash
-python3 -m pip install --upgrade pip
-python3 -m pip install customtkinter pymupdf matplotlib
+python -m pip install --upgrade pip
+python -m pip install customtkinter pymupdf matplotlib
 ```
+
+Après activation de `.venv`, la commande `python` doit normalement pointer vers le Python de l'environnement virtuel. Pour vérifier :
+
+```bash
+which python
+python -m pip --version
+```
+
+Le chemin doit contenir `.venv`.
 
 ### 4.6 Lancer l'application
 
@@ -294,6 +345,74 @@ Ou sur macOS / Linux :
 
 ```bash
 python3 -m pip --version
+```
+
+Sur Ubuntu / Debian, si le message est :
+
+```text
+/usr/bin/python3: No module named pip
+```
+
+installer `pip` :
+
+```bash
+sudo apt update
+sudo apt install python3-pip
+```
+
+Puis revenir dans le dossier du projet et recréer l'environnement virtuel si nécessaire :
+
+```bash
+cd Analyseur_documents
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip
+python -m pip install customtkinter pymupdf matplotlib
+```
+
+#### `.venv/bin/activate` est introuvable sur Linux ou macOS
+
+Ce message signifie généralement que l'environnement virtuel n'a pas encore été créé, ou que le terminal n'est pas placé dans le dossier du projet.
+
+Vérifier le dossier courant :
+
+```bash
+pwd
+ls
+```
+
+Le dossier doit contenir `main.py`, `README.md` et les autres fichiers du projet.
+
+Créer ensuite l'environnement virtuel :
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+```
+
+Sur Ubuntu / Debian, si la création échoue, installer `python3-venv` :
+
+```bash
+sudo apt update
+sudo apt install python3-venv
+python3 -m venv .venv
+source .venv/bin/activate
+```
+
+#### `python3 -m install ...` affiche `No module named install`
+
+La commande est incomplète : il manque `pip`.
+
+Commande incorrecte :
+
+```bash
+python3 -m install customtkinter pymupdf matplotlib
+```
+
+Commande correcte, une fois `.venv` activé :
+
+```bash
+python -m pip install customtkinter pymupdf matplotlib
 ```
 
 #### Erreur avec `customtkinter`, `fitz` ou `matplotlib`
