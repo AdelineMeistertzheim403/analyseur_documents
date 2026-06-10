@@ -597,14 +597,48 @@ Les graphiques peuvent être exportés en :
 
 L'application calcule un indice de style potentiellement artificiel.
 
-Cet indice ne prouve pas qu'un texte a été généré par IA. Il sert uniquement à signaler des caractéristiques stylistiques qui peuvent mériter une relecture.
+Cet indice ne prouve pas qu'un texte a été généré par IA. Il sert uniquement à signaler des caractéristiques stylistiques qui peuvent mériter une relecture humaine.
+
+Le score est compris entre `0` et `100`.
+
+Important :
+
+- un score bas signifie que le texte présente peu de signaux de style artificiel ;
+- un score élevé signifie que le texte présente davantage de signaux de style artificiel ;
+- ce n'est pas un score de qualité ;
+- ce n'est pas une preuve qu'une IA a rédigé le document.
+
+Interprétation utilisée par l'application :
+
+```text
+0 à 34   : Faible
+35 à 64  : Moyen
+65 à 100 : Élevé
+```
+
+Exemples d'interprétation :
+
+- `Faible` : le texte ne présente pas beaucoup de régularités ou de formules génériques repérées.
+- `Moyen` : certains passages peuvent sembler très standardisés ou répétitifs.
+- `Élevé` : plusieurs signaux sont présents en même temps ; une relecture attentive est recommandée.
 
 Les signaux utilisés sont :
 
-- phrases de longueur très régulière,
-- connecteurs logiques fréquents,
-- formules génériques répétées,
-- diversité lexicale faible.
+- phrases de longueur très régulière : les phrases ont souvent une taille similaire ;
+- connecteurs logiques fréquents : par exemple `cependant`, `de plus`, `en effet`, `ainsi` ;
+- formules génériques répétées : par exemple `il est important de`, `cela permet de`, `il convient de` ;
+- diversité lexicale faible : le texte utilise proportionnellement peu de mots différents.
+
+Le score augmente quand plusieurs de ces signaux apparaissent ensemble.
+
+Par exemple, un texte peut obtenir un score élevé s'il contient :
+
+- beaucoup de phrases de longueur proche,
+- beaucoup de connecteurs logiques,
+- plusieurs formules très génériques,
+- un vocabulaire assez répétitif.
+
+À l'inverse, un score bas indique seulement que ces signaux précis n'ont pas été fortement détectés. Cela ne garantit pas que le texte n'a pas été généré par IA.
 
 Le résultat est affiché avec :
 
@@ -612,6 +646,14 @@ Le résultat est affiché avec :
 - un score sur 100,
 - une liste de signaux détectés,
 - une note de prudence.
+
+La bonne utilisation de cet indice est donc :
+
+```text
+Score faible  -> peu de signaux suspects selon les règles du programme.
+Score moyen   -> quelques signaux à vérifier.
+Score élevé   -> plusieurs signaux à relire attentivement.
+```
 
 ### 6.8 Graphiques disponibles
 
