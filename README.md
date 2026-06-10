@@ -436,8 +436,45 @@ Installer les composants Tkinter du système.
 Ubuntu / Debian :
 
 ```bash
+sudo apt update
 sudo apt install python3-tk
 ```
+
+Si l'erreur indique exactement :
+
+```text
+ModuleNotFoundError: No module named 'tkinter'
+```
+
+cela signifie que Python fonctionne, que les dépendances du projet peuvent être installées, mais que le module graphique système `tkinter` manque.
+
+Sur Ubuntu, faire :
+
+```bash
+sudo apt update
+sudo apt install python3-tk
+```
+
+Puis vérifier :
+
+```bash
+python3 -c "import tkinter; print('Tkinter OK')"
+```
+
+Si la machine utilise Python 3.12 et que l'erreur continue, installer le paquet spécifique :
+
+```bash
+sudo apt install python3.12-tk
+```
+
+Puis relancer depuis le dossier du projet :
+
+```bash
+source .venv/bin/activate
+python main.py
+```
+
+Après activation de `.venv`, utiliser plutôt `python main.py` que `python3 main.py`, pour être sûr d'utiliser l'environnement virtuel actif.
 
 Fedora :
 
