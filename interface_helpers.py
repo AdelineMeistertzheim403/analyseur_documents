@@ -35,6 +35,14 @@ def formater_statistiques(resultat, nombre_termes_recherches):
     if "phrases_longues" in resultat:
         lignes.append(f"Nombre de phrases longues : {len(resultat['phrases_longues'])}")
 
+    structure = resultat.get("structure_document")
+    if structure:
+        lignes.append(f"Nombre de listes à puces détectées : {structure['nombre_listes_puces']}")
+
+    nettoyage_pdf = resultat.get("nettoyage_pdf")
+    if nettoyage_pdf:
+        lignes.append(f"Lignes PDF ignorées en en-tête/pied : {nettoyage_pdf['nombre_lignes_ignorees']}")
+
     lisibilite = resultat.get("lisibilite")
     if lisibilite:
         lignes.extend([
@@ -186,6 +194,60 @@ def formater_termes_techniques(resultat):
     else:
         for terme in absents:
             lignes.append(f"- {terme}")
+
+    return "\n".join(lignes) + "\n"
+
+
+def formater_structure_document(resultat):
+    structure = resultat.get("structure_document")
+
+    if not structure:
+        return "STRUCTURE DU DOCUMENT\n\nAucune donnée de structure disponible.\n"
+
+    lignes = [
+        "STRUCTURE DU DOCUMENT",
+        "",
+        f"Nombre de lignes textuelles détectées : {structure['nombre_lignes_textuelles']}",
+        f"Nombre de listes à puces détectées : {structure['nombre_listes_puces']}",
+        "",
+        "LISTES À PUCES DÉTECTÉES",
+        ""
+    ]
+
+    listes = structure.get("listes_puces", [])
+    if not listes:
+        lignes.append("Aucune liste à puces détectée.")
+    else:
+        for index, item in enumerate(listes, start=1):
+            page = f"Page {item['page']} - " if item.get("page") else ""
+            lignes.append(f"{index}. {page}{item['texte']}")
+
+    nettoyage_pdf = resultat.get("nettoyage_pdf")
+    if nettoyage_pdf:
+        lignes.extend([
+            "",
+            "NETTOYAGE PDF",
+            "",
+            f"Lignes ignorées : {nettoyage_pdf['nombre_lignes_ignorees']}",
+            f"Marge haut : {nettoyage_pdf['marge_haut_ratio'] * 100:.0f} %",
+            f"Marge bas : {nettoyage_pdf['marge_bas_ratio'] * 100:.0f} %",
+            f"Seuil de répétition : {nettoyage_pdf['seuil_repetition'] * 100:.0f} %",
+            "",
+            "LIGNES IGNORÉES",
+            ""
+        ])
+
+        lignes_ignorees = nettoyage_pdf.get("lignes_ignorees", [])
+        if not lignes_ignorees:
+            lignes.append("Aucune ligne ignorée.")
+        else:
+            for index, item in enumerate(lignes_ignorees[:80], start=1):
+                lignes.append(
+                    f"{index}. Page {item['page']} - {item['raison']} : {item['texte']}"
+                )
+
+            if len(lignes_ignorees) > 80:
+                lignes.append(f"... {len(lignes_ignorees) - 80} ligne(s) ignorée(s) non affichée(s).")
 
     return "\n".join(lignes) + "\n"
 

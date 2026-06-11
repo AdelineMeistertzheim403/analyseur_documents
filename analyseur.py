@@ -53,6 +53,18 @@ FORMULES_GENERIQUES = [
     "mais aussi"
 ]
 
+MOTIF_LISTE_PUCE = re.compile(
+    r"^\s*(?:[-*•●○▪▫–—✓]|[0-9]+[.)]|[a-zA-Z][.)])\s+"
+)
+
+
+def extraire_page_ligne(ligne):
+    match = re.match(r"^@@PAGE:(\d+)@@\s*(.*)$", ligne)
+    if not match:
+        return None, ligne
+
+    return int(match.group(1)), match.group(2)
+
 
 def compter_caracteres(texte):
     return len(nettoyer_marqueurs_pages(texte))
@@ -66,6 +78,39 @@ def extraire_mots(texte):
 def compter_mots(texte):
     mots = extraire_mots(texte)
     return len(mots)
+
+
+def est_ligne_liste_puce(texte):
+    return MOTIF_LISTE_PUCE.match(texte) is not None
+
+
+def analyser_structure_document(texte):
+    lignes_textuelles = []
+    listes_puces = []
+
+    for ligne in texte.splitlines():
+        page, contenu = extraire_page_ligne(ligne.strip())
+        contenu = contenu.strip()
+
+        if not contenu:
+            continue
+
+        lignes_textuelles.append({
+            "page": page,
+            "texte": contenu
+        })
+
+        if est_ligne_liste_puce(contenu):
+            listes_puces.append({
+                "page": page,
+                "texte": contenu
+            })
+
+    return {
+        "nombre_lignes_textuelles": len(lignes_textuelles),
+        "nombre_listes_puces": len(listes_puces),
+        "listes_puces": listes_puces
+    }
 
 
 def mots_les_plus_frequents(texte, nombre=10):
@@ -398,6 +443,7 @@ def analyser_texte(
         "nombre_caracteres": compter_caracteres(texte),
         "nombre_mots": compter_mots(texte),
         "nombre_phrases": nombre_phrases,
+        "structure_document": analyser_structure_document(texte),
         "mots_frequents": mots_les_plus_frequents(texte),
         "phrases_longues": phrases_longues,
         "longueurs_phrases": longueurs_phrases,

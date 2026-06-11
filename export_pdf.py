@@ -90,6 +90,47 @@ def _generer_lignes_rapport(resultat):
     lignes.extend(_lignes_dictionnaire("Phrases longues par page", resultat.get("phrases_longues_par_page", {})))
     lignes.extend(_lignes_dictionnaire("Alertes de complexité", resultat.get("alertes_complexite", {})))
 
+    structure = resultat.get("structure_document")
+    if structure:
+        lignes.extend([
+            "",
+            "Structure du document :",
+            f"- Lignes textuelles détectées : {structure['nombre_lignes_textuelles']}",
+            f"- Listes à puces détectées : {structure['nombre_listes_puces']}",
+            "",
+            "Listes à puces :"
+        ])
+
+        if not structure.get("listes_puces"):
+            lignes.append("- Aucune liste à puces détectée.")
+        else:
+            for item in structure["listes_puces"]:
+                page = f"Page {item['page']} - " if item.get("page") else ""
+                lignes.append(f"- {page}{item['texte']}")
+
+    nettoyage_pdf = resultat.get("nettoyage_pdf")
+    if nettoyage_pdf:
+        lignes.extend([
+            "",
+            "Nettoyage PDF :",
+            f"- Lignes ignorées : {nettoyage_pdf['nombre_lignes_ignorees']}",
+            f"- Marge haut : {nettoyage_pdf['marge_haut_ratio'] * 100:.0f} %",
+            f"- Marge bas : {nettoyage_pdf['marge_bas_ratio'] * 100:.0f} %",
+            f"- Seuil de répétition : {nettoyage_pdf['seuil_repetition'] * 100:.0f} %",
+            "",
+            "Lignes ignorées :"
+        ])
+
+        lignes_ignorees = nettoyage_pdf.get("lignes_ignorees", [])
+        if not lignes_ignorees:
+            lignes.append("- Aucune ligne ignorée.")
+        else:
+            for item in lignes_ignorees[:120]:
+                lignes.append(f"- Page {item['page']} - {item['raison']} : {item['texte']}")
+
+            if len(lignes_ignorees) > 120:
+                lignes.append(f"- ... {len(lignes_ignorees) - 120} ligne(s) ignorée(s) non affichée(s).")
+
     lignes.extend(["", "Phrases trop longues :"])
     if not resultat["phrases_longues"]:
         lignes.append("- Aucune phrase trop longue.")

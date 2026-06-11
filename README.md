@@ -51,8 +51,10 @@ Il inclut :
 - Suggestions simples pour couper certaines phrases longues.
 - Détection des termes techniques avec nombre d'occurrences.
 - Affichage des termes techniques non trouvés.
+- Détection des listes à puces et listes numérotées.
 - Options d'analyse dans l'interface :
   - ignorer les titres,
+  - ignorer les en-têtes et pieds de page,
   - ignorer figures, tableaux et annexes,
   - analyser seulement la zone Introduction → Conclusion.
 - Graphiques :
@@ -522,6 +524,7 @@ python3 main.py
    - `Mots fréquents`
    - `Phrases longues`
    - `Termes techniques`
+   - `Structure`
    - `Graphiques`
 8. Revenir dans `Configuration` pour cliquer sur `Exporter rapport` ou `Exporter graphiques`.
 
@@ -593,7 +596,57 @@ Les graphiques peuvent être exportés en :
 - `.pdf`,
 - `.svg`.
 
-### 6.7 Indice de style potentiellement artificiel
+### 6.7 Structure du document
+
+L'onglet `Structure` affiche des informations sur l'organisation du texte :
+
+- nombre de lignes textuelles détectées,
+- nombre de listes à puces détectées,
+- détail des lignes de liste trouvées,
+- page PDF associée quand elle est disponible.
+- lignes PDF ignorées pendant le nettoyage des en-têtes et pieds de page.
+
+Les listes sont détectées grâce au début des lignes. Exemples reconnus :
+
+```text
+• Développement de l'interface
+- Création des routes API
+* Tests fonctionnels
+1. Analyse du besoin
+2) Développement
+a. Configuration
+a) Configuration
+```
+
+Pour les PDF, la détection repose sur le texte extrait ligne par ligne avec PyMuPDF. Certains PDF peuvent perdre les symboles visuels de liste pendant l'extraction ; dans ce cas, la liste peut ne pas être détectée même si elle est visible dans le document.
+
+### 6.8 Nettoyage des en-têtes et pieds de page
+
+L'option `Ignorer en-têtes et pieds de page` permet de retirer du texte qui revient souvent dans les marges du PDF.
+
+Le nettoyage combine deux méthodes :
+
+- suppression des lignes situées dans la zone haute ou basse de la page ;
+- suppression des lignes répétées sur plusieurs pages quand elles se trouvent dans ces zones.
+
+Exemples de lignes souvent supprimées :
+
+```text
+Mémoire de stage - Nom Prénom
+Université / année scolaire
+Page 12
+12
+```
+
+Par défaut, l'application considère :
+
+- les 8 % supérieurs de la page comme zone d'en-tête ;
+- les 8 % inférieurs de la page comme zone de pied de page ;
+- une ligne comme répétée si elle apparaît sur au moins 40 % des pages.
+
+Les lignes ignorées sont visibles dans l'onglet `Structure`, section `Nettoyage PDF`, afin de vérifier que le programme n'a pas retiré du contenu utile.
+
+### 6.9 Indice de style potentiellement artificiel
 
 L'application calcule un indice de style potentiellement artificiel.
 
@@ -655,7 +708,7 @@ Score moyen   -> quelques signaux à vérifier.
 Score élevé   -> plusieurs signaux à relire attentivement.
 ```
 
-### 6.8 Graphiques disponibles
+### 6.10 Graphiques disponibles
 
 L'onglet `Graphiques` regroupe plusieurs visualisations :
 
@@ -680,6 +733,7 @@ La fonction `analyser_texte(...)` retourne un dictionnaire de ce type :
     "nombre_caracteres": int,
     "nombre_mots": int,
     "nombre_phrases": int,
+    "structure_document": dict,
     "mots_frequents": list[tuple[str, int]],
     "phrases_longues": list[dict],
     "longueurs_phrases": list[int],

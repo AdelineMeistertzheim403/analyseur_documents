@@ -1,8 +1,15 @@
 import tkinter as tk
 from tkinter import filedialog, messagebox
+import sys
+import tempfile
 from pathlib import Path
 
 import customtkinter as ctk
+
+try:
+    from PIL import Image
+except ImportError:
+    Image = None
 
 from analyseur import analyser_texte
 from lecteur_pdf import lire_pdf
@@ -15,6 +22,7 @@ from interface_helpers import (
     formater_phrases_longues,
     formater_resume_qualite,
     formater_statistiques,
+    formater_structure_document,
     formater_termes_techniques,
 )
 
@@ -29,8 +37,14 @@ class AnalyseurApp:
         ctk.set_appearance_mode("dark")
         ctk.set_default_color_theme("dark-blue")
 
+        self.dossier_application = Path(__file__).resolve().parent
+        self.logo_interface = None
+        self.icone_application = None
+        self.chemin_icone_temporaire = None
+
         self.chemin_fichier = None
         self.resultat = None
+        self.details_nettoyage_pdf = None
         self.canvas_graphes = None
         self.figure_graphes = None
         self.figures_graphes = []
@@ -39,10 +53,68 @@ class AnalyseurApp:
         self.zone_canvas_graphes = None
 
         self.var_ignorer_titres = tk.BooleanVar(value=True)
+        self.var_ignorer_entetes_pieds = tk.BooleanVar(value=True)
         self.var_filtrer_blocs = tk.BooleanVar(value=True)
         self.var_intro_conclusion = tk.BooleanVar(value=True)
 
+        self.configurer_icone_application()
         self.creer_interface()
+
+    def configurer_icone_application(self):
+        chemin_icone = self.dossier_application / "icone.png"
+
+        if not chemin_icone.exists():
+            return
+
+        if sys.platform == "win32":
+            try:
+                import ctypes
+
+                ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(
+                    "AnalyseurDocuments.App"
+                )
+            except Exception:
+                pass
+
+        try:
+            if Image is not None:
+                image_icone = Image.open(chemin_icone)
+                chemin_ico = Path(tempfile.gettempdir()) / "analyseur_documents_icone.ico"
+                image_icone.save(
+                    chemin_ico,
+                    format="ICO",
+                    sizes=[(16, 16), (32, 32), (48, 48), (64, 64), (128, 128), (256, 256)]
+                )
+                self.chemin_icone_temporaire = chemin_ico
+                self.root.iconbitmap(default=str(chemin_ico))
+        except Exception:
+            self.chemin_icone_temporaire = None
+
+        try:
+            self.icone_application = tk.PhotoImage(file=str(chemin_icone))
+            self.root.iconphoto(True, self.icone_application)
+        except tk.TclError:
+            if self.chemin_icone_temporaire is None:
+                self.icone_application = None
+
+    def charger_logo_interface(self):
+        if Image is None:
+            return None
+
+        chemin_logo = self.dossier_application / "logo.png"
+
+        if not chemin_logo.exists():
+            return None
+
+        try:
+            image_logo = Image.open(chemin_logo)
+            return ctk.CTkImage(
+                light_image=image_logo,
+                dark_image=image_logo,
+                size=(58, 58)
+            )
+        except Exception:
+            return None
 
     def creer_interface(self):
         self.root.grid_columnconfigure(0, weight=1)
@@ -50,14 +122,25 @@ class AnalyseurApp:
 
         self.frame_header = ctk.CTkFrame(self.root, corner_radius=15)
         self.frame_header.grid(row=0, column=0, padx=20, pady=(20, 10), sticky="ew")
-        self.frame_header.grid_columnconfigure(0, weight=1)
+        self.logo_interface = self.charger_logo_interface()
+
+        colonne_texte = 1 if self.logo_interface else 0
+        self.frame_header.grid_columnconfigure(colonne_texte, weight=1)
+
+        if self.logo_interface:
+            label_logo = ctk.CTkLabel(
+                self.frame_header,
+                image=self.logo_interface,
+                text=""
+            )
+            label_logo.grid(row=0, column=0, rowspan=2, padx=(20, 0), pady=15, sticky="w")
 
         titre = ctk.CTkLabel(
             self.frame_header,
             text="Analyseur de documents",
             font=ctk.CTkFont(size=28, weight="bold")
         )
-        titre.grid(row=0, column=0, padx=20, pady=(15, 5), sticky="w")
+        titre.grid(row=0, column=colonne_texte, padx=20, pady=(15, 5), sticky="w")
 
         sous_titre = ctk.CTkLabel(
             self.frame_header,
@@ -65,7 +148,7 @@ class AnalyseurApp:
             font=ctk.CTkFont(size=14),
             text_color="gray"
         )
-        sous_titre.grid(row=1, column=0, padx=20, pady=(0, 15), sticky="w")
+        sous_titre.grid(row=1, column=colonne_texte, padx=20, pady=(0, 15), sticky="w")
 
         self.onglets_principaux = ctk.CTkTabview(self.root, corner_radius=15)
         self.onglets_principaux.grid(row=1, column=0, padx=20, pady=(0, 20), sticky="nsew")
@@ -156,6 +239,7 @@ class AnalyseurApp:
         frame_filtres.grid_columnconfigure(0, weight=1)
         frame_filtres.grid_columnconfigure(1, weight=1)
         frame_filtres.grid_columnconfigure(2, weight=1)
+        frame_filtres.grid_columnconfigure(3, weight=1)
 
         checkbox_titres = ctk.CTkCheckBox(
             frame_filtres,
@@ -177,6 +261,13 @@ class AnalyseurApp:
             variable=self.var_intro_conclusion
         )
         checkbox_zone.grid(row=0, column=2, padx=15, pady=12, sticky="w")
+
+        checkbox_entetes = ctk.CTkCheckBox(
+            frame_filtres,
+            text="Ignorer en-têtes et pieds de page",
+            variable=self.var_ignorer_entetes_pieds
+        )
+        checkbox_entetes.grid(row=0, column=3, padx=15, pady=12, sticky="w")
 
         frame_termes = ctk.CTkFrame(parent, corner_radius=12)
         frame_termes.grid(row=3, column=0, padx=10, pady=(0, 10), sticky="nsew")
@@ -217,6 +308,7 @@ class AnalyseurApp:
         self.tabview.add("Mots fréquents")
         self.tabview.add("Phrases longues")
         self.tabview.add("Termes techniques")
+        self.tabview.add("Structure")
         self.tabview.add("Graphiques")
 
         self.zone_stats = self.creer_zone_texte(self.tabview.tab("Statistiques"))
@@ -224,6 +316,7 @@ class AnalyseurApp:
         self.zone_mots = self.creer_zone_texte(self.tabview.tab("Mots fréquents"))
         self.zone_phrases = self.creer_zone_texte(self.tabview.tab("Phrases longues"))
         self.zone_termes = self.creer_zone_texte(self.tabview.tab("Termes techniques"))
+        self.zone_structure = self.creer_zone_texte(self.tabview.tab("Structure"))
         self.frame_graphes = self.creer_zone_graphiques(self.tabview.tab("Graphiques"))
 
     def creer_zone_texte(self, parent):
@@ -306,14 +399,19 @@ class AnalyseurApp:
         extension = Path(self.chemin_fichier).suffix.lower()
 
         if extension == ".txt":
+            self.details_nettoyage_pdf = None
             with open(self.chemin_fichier, "r", encoding="utf-8") as fichier:
                 return fichier.read()
 
         if extension == ".pdf":
-            return lire_pdf(
+            resultat_pdf = lire_pdf(
                 self.chemin_fichier,
-                ignorer_titres=self.var_ignorer_titres.get()
+                ignorer_titres=self.var_ignorer_titres.get(),
+                ignorer_entetes_pieds=self.var_ignorer_entetes_pieds.get(),
+                retourner_details=True
             )
+            self.details_nettoyage_pdf = resultat_pdf.get("nettoyage_pdf")
+            return resultat_pdf["texte"]
 
         messagebox.showerror(
             "Format non supporté",
@@ -354,6 +452,9 @@ class AnalyseurApp:
             ignorer_titres=self.var_ignorer_titres.get()
         )
 
+        if self.details_nettoyage_pdf:
+            self.resultat["nettoyage_pdf"] = self.details_nettoyage_pdf
+
         self.afficher_resultat()
         self.onglets_principaux.set("Rapport d'analyse")
 
@@ -370,6 +471,7 @@ class AnalyseurApp:
         self.afficher_mots_frequents()
         self.afficher_phrases_longues()
         self.afficher_termes_techniques()
+        self.afficher_structure_document()
         self.afficher_graphiques()
 
     def afficher_statistiques(self):
@@ -396,6 +498,9 @@ class AnalyseurApp:
 
     def afficher_termes_techniques(self):
         self.zone_termes.insert("end", formater_termes_techniques(self.resultat))
+
+    def afficher_structure_document(self):
+        self.zone_structure.insert("end", formater_structure_document(self.resultat))
 
     def afficher_graphiques(self):
         for widget in self.zone_canvas_graphes.winfo_children():
@@ -459,7 +564,8 @@ class AnalyseurApp:
             self.zone_resume,
             self.zone_mots,
             self.zone_phrases,
-            self.zone_termes
+            self.zone_termes,
+            self.zone_structure
         ]
 
         for zone in zones:
