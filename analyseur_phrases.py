@@ -24,15 +24,25 @@ def _extraire_mots(texte):
 
 
 def _extraire_page_ligne(ligne):
-    match = re.match(r"^@@PAGE:(\d+)@@\s*(.*)$", ligne)
+    match = re.match(r"^@@PAGE:(\d+)@@\s*(?:@@PDFPAGE:\d+@@\s*)?(.*)$", ligne)
     if not match:
         return None, ligne
 
     return int(match.group(1)), match.group(2)
 
 
+def _extraire_pages_ligne(ligne):
+    match = re.match(r"^@@PAGE:(\d+)@@\s*(?:@@PDFPAGE:(\d+)@@\s*)?(.*)$", ligne)
+    if not match:
+        return None, None, ligne
+
+    page = int(match.group(1))
+    page_pdf = int(match.group(2)) if match.group(2) else page
+    return page, page_pdf, match.group(3)
+
+
 def nettoyer_marqueurs_pages(texte):
-    return re.sub(r"@@PAGE:\d+@@\s*", "", texte)
+    return re.sub(r"@@(?:PDF)?PAGE:\d+@@\s*", "", texte)
 
 
 def normaliser_texte_pour_phrases(texte):
@@ -42,7 +52,218 @@ def normaliser_texte_pour_phrases(texte):
     return texte
 
 
-def extraire_zone_memoire(texte):
+def _contenu_ligne(ligne):
+    _, contenu = _extraire_page_ligne(ligne.strip())
+    return re.sub(r"\s+", " ", contenu).strip()
+
+
+def _normaliser_titre_section(ligne):
+    ligne = _contenu_ligne(ligne)
+    ligne = re.sub(r"^\d+(?:\.\d+)*\.?\s+", "", ligne)
+    return ligne.strip(" \t:-")
+
+
+def _est_entree_sommaire(ligne):
+    ligne = _contenu_ligne(ligne)
+    ligne_min = ligne.lower()
+
+    if not ligne:
+        return False
+
+    if re.fullmatch(r"(sommaire|table des mati.res)", ligne_min):
+        return True
+
+    if re.search(r"\.{3,}", ligne):
+        return True
+
+    mots = _extraire_mots(ligne)
+    if len(mots) <= 10 and re.search(r"\s\d+\s*$", ligne):
+        return True
+
+    return False
+
+
+def _est_titre_section(ligne, motifs):
+    titre = _normaliser_titre_section(ligne)
+
+    if not titre:
+        return False
+
+    if _est_entree_sommaire(titre):
+        return False
+
+    if re.search(r"[.!?]$", titre):
+        return False
+
+    return any(re.fullmatch(motif, titre, flags=re.IGNORECASE) for motif in motifs)
+
+
+def _compter_mots_apres(texte, position, taille=1200):
+    extrait = texte[position:position + taille]
+    lignes = [
+        _contenu_ligne(ligne)
+        for ligne in extrait.splitlines()
+        if not _est_entree_sommaire(ligne)
+    ]
+    return len(_extraire_mots(" ".join(lignes)))
+
+
+def _trouver_ligne_section(texte, motifs, depart=0, mots_min_apres=0):
+    position = 0
+
+    for ligne in texte.splitlines(keepends=True):
+        debut_ligne = position
+        fin_ligne = position + len(ligne)
+        position = fin_ligne
+
+        if debut_ligne < depart:
+            continue
+
+        if not _est_titre_section(ligne, motifs):
+            continue
+
+        if mots_min_apres and _compter_mots_apres(texte, fin_ligne) < mots_min_apres:
+            continue
+
+        return debut_ligne, fin_ligne
+
+    return None
+
+
+def _extraire_entree_sommaire(ligne):
+    _, page_pdf, contenu = _extraire_pages_ligne(ligne.strip())
+    match = re.match(r"^(.*?)\.{3,}\s*(\d+)\s*$", contenu.strip())
+
+    if not match:
+        return None
+
+    titre = re.sub(r"\s+", " ", match.group(1)).strip()
+    titre = re.sub(r"^\d+(?:\.\d+)*\.?\s*", "", titre).strip()
+
+    if not titre:
+        return None
+
+    return {
+        "page_pdf": page_pdf,
+        "titre": titre,
+        "titre_min": titre.lower(),
+        "page_logique": int(match.group(2))
+    }
+
+
+def _extraire_entrees_sommaire(texte):
+    entrees = []
+
+    for ligne in texte.splitlines():
+        entree = _extraire_entree_sommaire(ligne)
+        if entree:
+            entrees.append(entree)
+
+    return entrees
+
+
+def _position_premiere_ligne_page(texte, page_cible):
+    position = 0
+
+    for ligne in texte.splitlines(keepends=True):
+        _, page_pdf, _ = _extraire_pages_ligne(ligne.strip())
+        if page_pdf and page_pdf >= page_cible:
+            return position
+        position += len(ligne)
+
+    return None
+
+
+def _trouver_zone_depuis_sommaire(texte):
+    entrees = _extraire_entrees_sommaire(texte)
+
+    if not entrees:
+        return None
+
+    entree_intro = next(
+        (
+            entree for entree in entrees
+            if re.fullmatch(r"introduction(?: g.n.rale)?", entree["titre_min"], flags=re.IGNORECASE)
+        ),
+        None
+    )
+
+    if entree_intro is None:
+        return None
+
+    pages_sommaire = []
+    page_attendue = entree_intro["page_pdf"]
+    for page in sorted({entree["page_pdf"] for entree in entrees if entree["page_pdf"] is not None}):
+        if page < entree_intro["page_pdf"]:
+            continue
+        if page != page_attendue:
+            break
+        pages_sommaire.append(page)
+        page_attendue += 1
+
+    entrees = [
+        entree for entree in entrees
+        if entree["page_pdf"] in pages_sommaire
+    ]
+    derniere_page_sommaire = max(
+        entree["page_pdf"] for entree in entrees
+        if entree["page_pdf"] is not None
+    )
+    page_debut = derniere_page_sommaire + 1
+    debut = _position_premiere_ligne_page(texte, page_debut)
+
+    if debut is None:
+        return None
+
+    entree_conclusion = next(
+        (
+            entree for entree in entrees
+            if entree["page_logique"] > entree_intro["page_logique"]
+            and re.fullmatch(r"conclusion(?: g.n.rale)?", entree["titre_min"], flags=re.IGNORECASE)
+        ),
+        None
+    )
+    fin = len(texte)
+
+    if entree_conclusion:
+        titres_fin = (
+            r"bibliographie",
+            r"webographie",
+            r"r.f.rences",
+            r"annexes?",
+            r"table des illustrations",
+            r"liste des abr.viations",
+            r"glossaire",
+            r"r.sum.",
+            r"abstract",
+            r"remerciements"
+        )
+        entree_apres_conclusion = next(
+            (
+                entree for entree in entrees
+                if entree["page_logique"] > entree_conclusion["page_logique"]
+                and any(
+                    re.fullmatch(motif, entree["titre_min"], flags=re.IGNORECASE)
+                    for motif in titres_fin
+                )
+            ),
+            None
+        )
+
+        if entree_apres_conclusion:
+            page_fin = (
+                derniere_page_sommaire
+                + (entree_apres_conclusion["page_logique"] - entree_intro["page_logique"])
+                + 1
+            )
+            position_fin = _position_premiere_ligne_page(texte, page_fin)
+            if position_fin is not None:
+                fin = position_fin
+
+    return debut, fin
+
+
+def _extraire_zone_memoire_ancienne(texte):
     # Limite l'analyse narrative a la zone Introduction -> Conclusion.
     texte_normalise = normaliser_texte_pour_phrases(texte)
 
@@ -80,6 +301,58 @@ def extraire_zone_memoire(texte):
 
     if sections_fin:
         fin = fin_match.end() + sections_fin.start()
+
+    return texte_normalise[debut:fin]
+
+
+def extraire_zone_memoire(texte):
+    # Limite l'analyse narrative a la vraie zone Introduction -> Conclusion.
+    texte_normalise = normaliser_texte_pour_phrases(texte)
+
+    intro = _trouver_ligne_section(
+        texte_normalise,
+        [r"introduction", r"introduction g.n.rale"],
+        mots_min_apres=30
+    )
+
+    if intro is None:
+        zone_sommaire = _trouver_zone_depuis_sommaire(texte_normalise)
+        if zone_sommaire:
+            debut, fin = zone_sommaire
+            return texte_normalise[debut:fin]
+        return texte_normalise
+
+    debut, _ = intro
+    conclusion = _trouver_ligne_section(
+        texte_normalise,
+        [r"conclusion", r"conclusion g.n.rale"],
+        depart=debut + 1
+    )
+
+    if conclusion is None:
+        return texte_normalise[debut:]
+
+    _, fin_titre_conclusion = conclusion
+    fin = len(texte_normalise)
+    section_apres_conclusion = _trouver_ligne_section(
+        texte_normalise,
+        [
+            r"bibliographie",
+            r"webographie",
+            r"r.f.rences",
+            r"annexes?",
+            r"table des illustrations",
+            r"liste des abr.viations",
+            r"glossaire",
+            r"r.sum.",
+            r"abstract",
+            r"remerciements"
+        ],
+        depart=fin_titre_conclusion
+    )
+
+    if section_apres_conclusion:
+        fin = section_apres_conclusion[0]
 
     return texte_normalise[debut:fin]
 

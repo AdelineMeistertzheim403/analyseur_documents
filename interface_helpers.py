@@ -214,13 +214,23 @@ def formater_structure_document(resultat):
         ""
     ]
 
+    lignes.insert(
+        4,
+        f"Nombre d'éléments de listes à puces : {structure.get('nombre_elements_listes_puces', 0)}"
+    )
+
     listes = structure.get("listes_puces", [])
     if not listes:
         lignes.append("Aucune liste à puces détectée.")
     else:
-        for index, item in enumerate(listes, start=1):
-            page = f"Page {item['page']} - " if item.get("page") else ""
-            lignes.append(f"{index}. {page}{item['texte']}")
+        for index, liste in enumerate(listes, start=1):
+            page = f"Page {liste['page']} - " if liste.get("page") else ""
+            elements = liste.get("elements", [])
+            lignes.append(f"{index}. {page}{len(elements)} élément(s)")
+
+            for element in elements:
+                page_element = f"Page {element['page']} - " if element.get("page") else ""
+                lignes.append(f"   - {page_element}{element['texte']}")
 
     nettoyage_pdf = resultat.get("nettoyage_pdf")
     if nettoyage_pdf:

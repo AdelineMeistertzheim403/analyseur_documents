@@ -161,6 +161,24 @@ def _raison_ligne_ignoree(
     return None
 
 
+def _detecter_numeros_pages_affiches(lignes, marge_bas_ratio):
+    numeros = {}
+
+    for ligne in lignes:
+        texte = ligne["texte"].strip()
+        hauteur_page = ligne["hauteur_page"]
+        y_haut = ligne["bbox"][1]
+        limite_bas = hauteur_page * (1 - marge_bas_ratio)
+
+        if y_haut <= limite_bas:
+            continue
+
+        if re.fullmatch(r"\d{1,4}", texte):
+            numeros[ligne["page"]] = int(texte)
+
+    return numeros
+
+
 def lire_pdf(
     chemin_fichier,
     ignorer_titres=True,
@@ -175,6 +193,10 @@ def lire_pdf(
     try:
         lignes = _extraire_lignes_pdf(document)
         taille_normale = _taille_police_normale(lignes)
+        numeros_pages_affiches = _detecter_numeros_pages_affiches(
+            lignes,
+            marge_bas_ratio
+        )
         lignes_repetees = (
             _detecter_lignes_repetees(
                 lignes,
@@ -201,7 +223,8 @@ def lire_pdf(
 
             if raison:
                 lignes_ignorees.append({
-                    "page": ligne["page"],
+                    "page": numeros_pages_affiches.get(ligne["page"], ligne["page"]),
+                    "page_pdf": ligne["page"],
                     "texte": ligne["texte"],
                     "raison": raison
                 })
@@ -210,7 +233,10 @@ def lire_pdf(
             if ignorer_titres and _est_titre_visuel(ligne, taille_normale):
                 continue
 
-            lignes_texte.append(f"@@PAGE:{ligne['page']}@@ {ligne['texte']}")
+            page_affichee = numeros_pages_affiches.get(ligne["page"], ligne["page"])
+            lignes_texte.append(
+                f"@@PAGE:{page_affichee}@@ @@PDFPAGE:{ligne['page']}@@ {ligne['texte']}"
+            )
 
         texte = "\n".join(lignes_texte)
 

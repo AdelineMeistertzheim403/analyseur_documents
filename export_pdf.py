@@ -101,12 +101,22 @@ def _generer_lignes_rapport(resultat):
             "Listes à puces :"
         ])
 
+        lignes.insert(
+            len(lignes) - 2,
+            f"- Éléments de listes à puces : {structure.get('nombre_elements_listes_puces', 0)}"
+        )
+
         if not structure.get("listes_puces"):
             lignes.append("- Aucune liste à puces détectée.")
         else:
-            for item in structure["listes_puces"]:
-                page = f"Page {item['page']} - " if item.get("page") else ""
-                lignes.append(f"- {page}{item['texte']}")
+            for index, liste in enumerate(structure["listes_puces"], start=1):
+                page = f"Page {liste['page']} - " if liste.get("page") else ""
+                elements = liste.get("elements", [])
+                lignes.append(f"- Liste {index} - {page}{len(elements)} élément(s)")
+
+                for element in elements:
+                    page_element = f"Page {element['page']} - " if element.get("page") else ""
+                    lignes.append(f"  - {page_element}{element['texte']}")
 
     nettoyage_pdf = resultat.get("nettoyage_pdf")
     if nettoyage_pdf:
