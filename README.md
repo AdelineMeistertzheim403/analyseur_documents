@@ -80,12 +80,28 @@ Il inclut :
 
 ```text
 Analyseur_documents/
-├── analyseur.py
-├── analyseur_phrases.py
-├── lecteur_pdf.py
-├── export_pdf.py
-├── interface.py
-├── interface_helpers.py
+├── analyseur_documents/
+│   ├── core/
+│   │   ├── analyseur.py
+│   │   ├── analyseur_lisibilite.py
+│   │   ├── analyseur_phrases.py
+│   │   ├── analyseur_resume.py
+│   │   ├── analyseur_structure.py
+│   │   ├── analyseur_style.py
+│   │   ├── analyseur_termes.py
+│   │   └── analyseur_utils.py
+│   ├── pdf/
+│   │   ├── lecteur_pdf.py
+│   │   ├── pdf_extraction.py
+│   │   ├── pdf_nettoyage.py
+│   │   └── pdf_pages.py
+│   ├── ui/
+│   │   ├── interface.py
+│   │   ├── interface_assets.py
+│   │   ├── interface_documents.py
+│   │   └── interface_helpers.py
+│   └── export/
+│       └── export_pdf.py
 ├── main.py
 └── README.md
 ```
@@ -93,12 +109,26 @@ Analyseur_documents/
 Rôle des fichiers :
 
 - `main.py` : point d'entrée de l'application.
-- `interface.py` : interface utilisateur, options d'analyse, onglets et boutons d'export.
-- `interface_helpers.py` : formatage des résultats et génération des graphiques.
-- `analyseur.py` : coordination de l'analyse globale.
-- `analyseur_phrases.py` : découpage des phrases, détection des phrases longues et complexité.
-- `lecteur_pdf.py` : extraction du texte PDF et conservation des numéros de page.
-- `export_pdf.py` : export des rapports et des graphiques.
+- `analyseur_documents/core/` : logique d'analyse textuelle.
+- `analyseur_documents/core/analyseur.py` : point d'entrée de l'analyse globale. Il prépare le texte, appelle les modules spécialisés, puis rassemble les résultats.
+- `analyseur_documents/core/analyseur_utils.py` : fonctions communes de comptage, extraction de mots, nettoyage des marqueurs de page et statistiques de base.
+- `analyseur_documents/core/analyseur_phrases.py` : découpage des phrases, détection des phrases longues et complexité.
+- `analyseur_documents/core/analyseur_lisibilite.py` : calcul du score de lisibilité, répartition des longueurs et alertes de complexité.
+- `analyseur_documents/core/analyseur_structure.py` : analyse de la structure du document, détection et regroupement des listes à puces.
+- `analyseur_documents/core/analyseur_style.py` : comptage des connecteurs, formules génériques et calcul de l'indice de style potentiellement artificiel.
+- `analyseur_documents/core/analyseur_termes.py` : recherche des termes techniques présents ou absents.
+- `analyseur_documents/core/analyseur_resume.py` : génération du résumé qualité, des points forts, points à améliorer et recommandations.
+- `analyseur_documents/pdf/` : extraction et nettoyage des PDF.
+- `analyseur_documents/pdf/lecteur_pdf.py` : point d'entrée de la lecture PDF. Il coordonne l'extraction, le nettoyage et la gestion des pages.
+- `analyseur_documents/pdf/pdf_extraction.py` : extraction brute des lignes PDF, tailles de police, gras et détection des titres visuels.
+- `analyseur_documents/pdf/pdf_nettoyage.py` : détection des en-têtes, pieds de page et lignes répétées à ignorer.
+- `analyseur_documents/pdf/pdf_pages.py` : détection des numéros de page affichés dans le document et génération des marqueurs de page internes.
+- `analyseur_documents/ui/` : interface graphique et interactions utilisateur.
+- `analyseur_documents/ui/interface.py` : assemblage principal de l'interface, options d'analyse, onglets et actions utilisateur.
+- `analyseur_documents/ui/interface_assets.py` : chargement du logo et configuration de l'icône de l'application.
+- `analyseur_documents/ui/interface_documents.py` : sélection des fichiers, lecture des documents et dialogues d'export.
+- `analyseur_documents/ui/interface_helpers.py` : formatage des résultats et génération des graphiques.
+- `analyseur_documents/export/export_pdf.py` : export des rapports et des graphiques.
 
 ## 4. Installation complète
 
@@ -532,17 +562,17 @@ python3 main.py
 
 ### 6.1 Extraction PDF
 
-Le module `lecteur_pdf.py` utilise :
+Le module `analyseur_documents/pdf/lecteur_pdf.py` coordonne la lecture des PDF. L'extraction brute est réalisée dans `analyseur_documents/pdf/pdf_extraction.py` avec :
 
 ```python
 page.get_text("dict")
 ```
 
-Cela permet de récupérer le texte, la taille de police, la police utilisée, le gras et le numéro de page.
+Cela permet de récupérer le texte, la taille de police, la police utilisée, le gras et le numéro de page PDF réel. Le module `analyseur_documents/pdf/pdf_pages.py` détecte ensuite le numéro de page affiché dans le document quand il existe.
 
 ### 6.2 Découpage des phrases
 
-Le module `analyseur_phrases.py` prépare le texte avant segmentation :
+Le module `analyseur_documents/core/analyseur_phrases.py` prépare le texte avant segmentation :
 
 - normalisation des retours à la ligne,
 - recollement des mots coupés par césure,
@@ -602,8 +632,9 @@ L'onglet `Structure` affiche des informations sur l'organisation du texte :
 
 - nombre de lignes textuelles détectées,
 - nombre de listes à puces détectées,
-- détail des lignes de liste trouvées,
-- page PDF associée quand elle est disponible.
+- nombre d'éléments présents dans les listes à puces,
+- détail des listes trouvées avec leurs éléments,
+- numéro de page affiché dans le document quand il est disponible,
 - lignes PDF ignorées pendant le nettoyage des en-têtes et pieds de page.
 
 Les listes sont détectées grâce au début des lignes. Exemples reconnus :
@@ -619,6 +650,10 @@ a) Configuration
 ```
 
 Pour les PDF, la détection repose sur le texte extrait ligne par ligne avec PyMuPDF. Certains PDF peuvent perdre les symboles visuels de liste pendant l'extraction ; dans ce cas, la liste peut ne pas être détectée même si elle est visible dans le document.
+
+Quand plusieurs éléments de liste se suivent, l'application les regroupe dans une seule liste. Par exemple, six lignes commençant par `•` seront affichées comme `1` liste contenant `6` éléments, et non comme six listes séparées.
+
+Pour les numéros de page, l'application essaie d'utiliser le numéro imprimé en pied de page. Elle conserve aussi en interne le numéro réel de la page PDF afin que les filtres, comme `Analyser Introduction → Conclusion`, continuent de fonctionner correctement.
 
 ### 6.8 Nettoyage des en-têtes et pieds de page
 
@@ -786,15 +821,17 @@ Saisir les termes dans la zone dédiée de l'interface, un terme par ligne.
 
 ### 8.3 Modifier les connecteurs de phrase complexe
 
-Modifier la liste `CONNECTEURS` dans `analyseur_phrases.py`.
+Modifier la liste `CONNECTEURS` dans `analyseur_documents/core/analyseur_phrases.py`.
 
 ### 8.4 Ajuster les heuristiques PDF
 
 Adapter les fonctions suivantes selon le type de documents analysés :
 
-- `_est_titre_visuel(...)` dans `lecteur_pdf.py`,
-- `est_titre_probable(...)` dans `analyseur_phrases.py`,
-- `filtrer_blocs_non_narratifs(...)` dans `analyseur_phrases.py`.
+- `est_titre_visuel(...)` dans `analyseur_documents/pdf/pdf_extraction.py`,
+- `raison_ligne_ignoree(...)` dans `analyseur_documents/pdf/pdf_nettoyage.py`,
+- `detecter_numeros_pages_affiches(...)` dans `analyseur_documents/pdf/pdf_pages.py`,
+- `est_titre_probable(...)` dans `analyseur_documents/core/analyseur_phrases.py`,
+- `filtrer_blocs_non_narratifs(...)` dans `analyseur_documents/core/analyseur_phrases.py`.
 
 ## 9. Limitations connues
 

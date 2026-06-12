@@ -1,7 +1,7 @@
 import re
 from collections import Counter
 
-from analyseur_phrases import nettoyer_marqueurs_pages
+from .analyseur_phrases import nettoyer_marqueurs_pages
 
 
 MOTS_A_IGNORER = {

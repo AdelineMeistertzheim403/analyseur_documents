@@ -1,20 +1,23 @@
 import tkinter as tk
-from tkinter import filedialog, messagebox
-import sys
-import tempfile
+from tkinter import messagebox
 from pathlib import Path
 
 import customtkinter as ctk
 
-try:
-    from PIL import Image
-except ImportError:
-    Image = None
-
-from analyseur import analyser_texte
-from lecteur_pdf import lire_pdf
-from export_pdf import exporter_graphiques, exporter_resultat
-from interface_helpers import (
+from ..core.analyseur import analyser_texte
+from .interface_assets import (
+    charger_logo_interface,
+    configurer_icone_application,
+)
+from .interface_documents import (
+    choisir_document,
+    demander_chemin_graphiques,
+    demander_chemin_rapport,
+    exporter_graphiques_analyse,
+    exporter_rapport_analyse,
+    lire_document,
+)
+from .interface_helpers import (
     TERMES_TECHNIQUES_PAR_DEFAUT,
     creer_figures_analyse,
     extraire_termes_depuis_texte,
@@ -37,7 +40,7 @@ class AnalyseurApp:
         ctk.set_appearance_mode("dark")
         ctk.set_default_color_theme("dark-blue")
 
-        self.dossier_application = Path(__file__).resolve().parent
+        self.dossier_application = Path(__file__).resolve().parents[2]
         self.logo_interface = None
         self.icone_application = None
         self.chemin_icone_temporaire = None
@@ -61,60 +64,13 @@ class AnalyseurApp:
         self.creer_interface()
 
     def configurer_icone_application(self):
-        chemin_icone = self.dossier_application / "icone.png"
-
-        if not chemin_icone.exists():
-            return
-
-        if sys.platform == "win32":
-            try:
-                import ctypes
-
-                ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(
-                    "AnalyseurDocuments.App"
-                )
-            except Exception:
-                pass
-
-        try:
-            if Image is not None:
-                image_icone = Image.open(chemin_icone)
-                chemin_ico = Path(tempfile.gettempdir()) / "analyseur_documents_icone.ico"
-                image_icone.save(
-                    chemin_ico,
-                    format="ICO",
-                    sizes=[(16, 16), (32, 32), (48, 48), (64, 64), (128, 128), (256, 256)]
-                )
-                self.chemin_icone_temporaire = chemin_ico
-                self.root.iconbitmap(default=str(chemin_ico))
-        except Exception:
-            self.chemin_icone_temporaire = None
-
-        try:
-            self.icone_application = tk.PhotoImage(file=str(chemin_icone))
-            self.root.iconphoto(True, self.icone_application)
-        except tk.TclError:
-            if self.chemin_icone_temporaire is None:
-                self.icone_application = None
+        self.icone_application, self.chemin_icone_temporaire = configurer_icone_application(
+            self.root,
+            self.dossier_application
+        )
 
     def charger_logo_interface(self):
-        if Image is None:
-            return None
-
-        chemin_logo = self.dossier_application / "logo.png"
-
-        if not chemin_logo.exists():
-            return None
-
-        try:
-            image_logo = Image.open(chemin_logo)
-            return ctk.CTkImage(
-                light_image=image_logo,
-                dark_image=image_logo,
-                size=(58, 58)
-            )
-        except Exception:
-            return None
+        return charger_logo_interface(self.dossier_application)
 
     def creer_interface(self):
         self.root.grid_columnconfigure(0, weight=1)
@@ -370,14 +326,7 @@ class AnalyseurApp:
             ctk.set_appearance_mode("dark")
 
     def choisir_fichier(self):
-        chemin = filedialog.askopenfilename(
-            title="Choisir un document",
-            filetypes=[
-                ("Documents texte et PDF", "*.txt *.pdf"),
-                ("Fichiers texte", "*.txt"),
-                ("Fichiers PDF", "*.pdf")
-            ]
-        )
+        chemin = choisir_document()
 
         if chemin:
             self.chemin_fichier = chemin
@@ -396,22 +345,15 @@ class AnalyseurApp:
             )
             return None
 
-        extension = Path(self.chemin_fichier).suffix.lower()
+        resultat_document = lire_document(
+            self.chemin_fichier,
+            ignorer_titres=self.var_ignorer_titres.get(),
+            ignorer_entetes_pieds=self.var_ignorer_entetes_pieds.get()
+        )
 
-        if extension == ".txt":
-            self.details_nettoyage_pdf = None
-            with open(self.chemin_fichier, "r", encoding="utf-8") as fichier:
-                return fichier.read()
-
-        if extension == ".pdf":
-            resultat_pdf = lire_pdf(
-                self.chemin_fichier,
-                ignorer_titres=self.var_ignorer_titres.get(),
-                ignorer_entetes_pieds=self.var_ignorer_entetes_pieds.get(),
-                retourner_details=True
-            )
-            self.details_nettoyage_pdf = resultat_pdf.get("nettoyage_pdf")
-            return resultat_pdf["texte"]
+        if resultat_document:
+            self.details_nettoyage_pdf = resultat_document.get("nettoyage_pdf")
+            return resultat_document["texte"]
 
         messagebox.showerror(
             "Format non supporté",
@@ -590,19 +532,10 @@ class AnalyseurApp:
             )
             return
 
-        chemin_sortie = filedialog.asksaveasfilename(
-            title="Exporter le rapport",
-            defaultextension=".pdf",
-            filetypes=[
-                ("Rapport PDF", "*.pdf"),
-                ("Page HTML", "*.html"),
-                ("Fichier texte", "*.txt"),
-                ("CSV phrases longues", "*.csv")
-            ]
-        )
+        chemin_sortie = demander_chemin_rapport()
 
         if chemin_sortie:
-            exporter_resultat(self.resultat, chemin_sortie)
+            exporter_rapport_analyse(self.resultat, chemin_sortie)
             messagebox.showinfo(
                 "Export terminé",
                 "Le rapport a bien été exporté."
@@ -616,18 +549,10 @@ class AnalyseurApp:
             )
             return
 
-        chemin_sortie = filedialog.asksaveasfilename(
-            title="Exporter les graphiques",
-            defaultextension=".png",
-            filetypes=[
-                ("Image PNG", "*.png"),
-                ("Document PDF", "*.pdf"),
-                ("Image SVG", "*.svg")
-            ]
-        )
+        chemin_sortie = demander_chemin_graphiques()
 
         if chemin_sortie:
-            exporter_graphiques(self.figure_graphes, chemin_sortie)
+            exporter_graphiques_analyse(self.figure_graphes, chemin_sortie)
             messagebox.showinfo(
                 "Export terminé",
                 "Les graphiques ont bien été exportés."

@@ -2,8 +2,8 @@ import math
 import re
 from collections import Counter
 
-from analyseur_phrases import CONNECTEURS, nettoyer_marqueurs_pages
-from analyseur_utils import extraire_mots
+from .analyseur_phrases import CONNECTEURS, nettoyer_marqueurs_pages
+from .analyseur_utils import extraire_mots
 
 
 FORMULES_GENERIQUES = [

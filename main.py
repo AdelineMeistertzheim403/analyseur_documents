@@ -1,5 +1,5 @@
 import customtkinter as ctk
-from interface import AnalyseurApp
+from analyseur_documents.ui.interface import AnalyseurApp
 
 
 def main():

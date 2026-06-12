@@ -1,6 +1,6 @@
 import re
 
-from analyseur_utils import extraire_page_ligne
+from .analyseur_utils import extraire_page_ligne
 
 
 SYMBOLES_PUCES = (

@@ -1,6 +1,6 @@
 import re
 
-from analyseur_phrases import nettoyer_marqueurs_pages
+from .analyseur_phrases import nettoyer_marqueurs_pages
 
 
 TERMES_TECHNIQUES = [

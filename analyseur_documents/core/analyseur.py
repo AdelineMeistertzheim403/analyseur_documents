@@ -1,24 +1,24 @@
-from analyseur_lisibilite import (
+from .analyseur_lisibilite import (
     calculer_lisibilite,
     calculer_repartition_longueurs,
     compter_alertes_complexite,
     compter_phrases_longues_par_page,
 )
-from analyseur_phrases import (
+from .analyseur_phrases import (
     compter_phrases,
     detecter_phrases_longues,
     extraire_longueurs_phrases,
     preparer_texte_pour_phrases,
 )
-from analyseur_resume import generer_resume_qualite
-from analyseur_structure import analyser_structure_document
-from analyseur_style import (
+from .analyseur_resume import generer_resume_qualite
+from .analyseur_structure import analyser_structure_document
+from .analyseur_style import (
     calculer_indice_style_artificiel,
     compter_connecteurs,
     compter_formules_generiques,
 )
-from analyseur_termes import TERMES_TECHNIQUES, detecter_termes_techniques
-from analyseur_utils import (
+from .analyseur_termes import TERMES_TECHNIQUES, detecter_termes_techniques
+from .analyseur_utils import (
     compter_caracteres,
     compter_mots,
     extraire_mots,
